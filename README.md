@@ -6,51 +6,106 @@ Clean climate data for agents, with requested formats, provenance and MPP access
 
 | Workspace | Runtime | Responsibility |
 |---|---|---|
-| `apps/web` | Next.js, port 3000 | Website, data requests, maps and strategy results |
-| `apps/api` | Next.js route handlers, port 3001 | Public data contracts, payment verification, jobs and publication |
-| `apps/worker` | Node.js on the target machine | Pi/Claude acquisition, parsing, validation and upload |
-| `packages/contracts` | Shared TypeScript and Zod | Request validation and job states |
+| `apps/web` | Next.js, port 3000 | Website, maps and strategy results |
+| `apps/api` | Next.js, port 3001 | Request contracts, MPP verification and job submission |
+| `apps/worker` | Persistent Node.js on the target machine | Pull jobs, run Pi/Claude acquisition and publish validated data |
+| `packages/contracts` | TypeScript/Zod | Shared data contracts |
+| `packages/queue` | Redis REST + atomic Lua | Claims, leases, retries and idempotent enqueueing |
 
-The web server proxies `/api/*` to the API. External agents call the API directly. The worker will use outbound authenticated requests to claim jobs, emit events and submit outputs; it requires no public inbound port. The API owns database publication and payment credentials. Pi receives narrowly scoped acquisition tools, not the database admin key. A separate process is not a security sandbox.
+The web server proxies `/api/*` to the API. External agents call the API directly. The worker pulls from Upstash over outbound HTTPS; no inbound worker port is required. The trusted worker supervisor has Supabase publication credentials. When Pi execution is added, give its subprocess an explicit environment allowlist: **never inherit Supabase, Redis or payment secrets into Pi**. A separate process is not a security sandbox.
 
-## Development
+## Environment profiles
 
-Use Node.js 22 or newer and pnpm 11.24.0. From the repository root:
+Use Node.js 22+ and pnpm 11.24.0. Root `.env.local` is the sandbox source of truth; `.env.production` is the production source of truth. Existing `.env.prod` is retained as a legacy input. The generated app files are ignored by Git and have mode `0600`.
 
 ```sh
 pnpm install --frozen-lockfile
+pnpm env:sync
 pnpm dev
+pnpm worker:sandbox
 ```
 
-Open `http://localhost:3000`. The request form calls the separate API through the web proxy. Run either app alone with `pnpm dev:web` or `pnpm dev:api`.
+Edit root profiles, then run `pnpm env:sync` again. Only public Supabase URL/publishable key reach the browser. Supabase secret keys are restricted to API and trusted worker; Stripe credentials are restricted to API. Claude credentials are restricted to the worker.
 
-Copy each app's `.env.example` to its own `.env.local` when configuring it. The root environment template is only a pointer; environments are deliberately separate. The development proxy defaults to `http://127.0.0.1:3001`.
+| Setting | Sandbox | Production profile |
+|---|---|---|
+| Profile | `.env.local` | `.env.production` |
+| `VERDANT_ENV` | `sandbox` | `production` |
+| `PAYMENT_MODE` currently | `test` | `test` |
+| Queue namespace | `verdant:sandbox:test` | `verdant:production:test` |
+| Supabase | `ulspzrnnwrfbgldphjpe` | Same project |
+| Redis | Supplied Upstash instance | Same instance, separate keys |
+
+These are separate queue/configuration profiles, **not physically isolated databases**. No climate tables have been created. Dataset/request storage will need explicit environment isolation or separate Supabase projects before mixing test and live writes.
+
+`pnpm worker:production` explicitly loads the production profile. Use `scripts/run-profile.mjs` for production builds/runs because Next.js normally loads `.env.local` ahead of `.env.production`. `pnpm build` builds using local settings; `pnpm build:production` uses the explicit production profile. Set production `API_ORIGIN` before building the web. Direct worker invocations default to `.env.local`.
+
+## Verification
 
 ```sh
 pnpm typecheck
 pnpm test
 pnpm build
 pnpm worker:check
+pnpm queue:smoke sandbox
+pnpm queue:smoke production
+pnpm services:smoke sandbox
+pnpm services:smoke production
 ```
 
-Worker configuration checks return a nonzero exit status when credentials are missing, and print only missing variable names. They do not call Claude, acquire files or verify external credentials. Validate a JSON request file on the worker with `pnpm --filter @verdant/worker validate /absolute/path/request.json`.
+Queue smoke tests use unique temporary keys and clean up only those keys. They verify atomic concurrent claims, idempotency, stale-worker rejection, lease recovery, lane isolation and retry limits. Service smoke tests start an API on port 3101, enqueue an authenticated diagnostic, run the real worker once, and check completion. They leave the diagnostic record for inspection. Both refuse live payment profiles.
 
-For production, deploy the two Next.js apps separately and set the web's `API_ORIGIN` before building. `pnpm --filter @verdant/web start` and `pnpm --filter @verdant/api start` run their production servers. Deploy the worker to the chosen target machine as a persistent service once its job loop is implemented. An HTTPS API URL is required outside local development.
+The worker currently consumes **diagnostic jobs only** and verifies Redis/Supabase credentials. It does not yet acquire climate data or invoke Pi. `worker:check` reports missing Claude configuration separately. Completed queue records currently have no retention policy; add bounded retention before sustained use.
 
-## Current implementation
+## Vercel
 
-Implemented: workspace structure, a request form, API health endpoint, bounded request-validation endpoint, shared schema/tests and worker configuration/request validation commands.
+Target team: **Kevin Personal Projects** (`lookevinks-projects`). Two projects: `verdant-ai-web` with root `apps/web`, and `verdant-ai-api` with root `apps/api`. Include files outside the root directory so shared packages are available. The worker stays on the target machine.
 
-Not yet implemented: database tables/import, worker job claims and leases, Pi execution, source acquisition, publication/upload, map rendering, backtests and MPP payment verification. Validation success confirms request structure only, not source coverage, availability or purchase. The API health response reports process health, not database readiness.
+```sh
+pnpm vercel:sync
+```
 
-Supabase target: `ulspzrnnwrfbgldphjpe`. No remote database changes were made by this scaffold.
+This script links/configures these projects, obtains the API's assigned domain, updates the local production origin, and uploads per-service environment values. Production uses `.env.production`; development/preview use `.env.local`. Secrets are uploaded through stdin and marked sensitive in production/preview. It does not deploy. Vercel currently needs an owner to create the projects and grant the logged-in account access.
+
+For paired previews, deploy the API preview first, then set the web preview's `API_ORIGIN` to that exact deployment URL before building. The sync script deliberately excludes the localhost origin from hosted previews. Vercel web builds fail if no API origin is configured. If preview deployment protection is enabled, configure authenticated server-to-server access before testing the proxy.
+
+## MPP with Stripe
+
+MPP is the HTTP payment protocol; Stripe handles the payment. The sandbox endpoint is `GET /api/v1/payments/probe`, priced at **$0.50 in test funds**. It verifies a Stripe SPT and queues a diagnostic job. It does not sell climate data. It returns 404 in live mode and 503 until credentials and a sandbox business profile are present.
+
+A dedicated, temporary Stripe sandbox has been created under CLI profile `verdant`; it expires **10 October 2026** unless claimed. Its temporary key has been copied into both test-mode environment profiles. The key cannot currently access the MPP business-profile API (HTTP 403). Claim it, log into the claimed sandbox, and create its Stripe business profile:
+
+```sh
+stripe sandbox claim --project-name verdant
+stripe login --project-name verdant
+pnpm stripe:sync
+pnpm vercel:sync
+```
+
+`stripe:sync` reads only the Verdant CLI profile, retrieves the `profile_test_` ID, and updates both test-mode profiles without printing keys. If profile lookup is denied, complete Stripe account/profile setup first.
+
+To test on a deployed production URL, **keep server-side `PAYMENT_MODE=test` and sandbox Stripe credentials**, then run the pinned validator:
+
+```sh
+pnpm --filter @verdant/api exec mppx validate https://YOUR-API/api/v1/payments/probe
+```
+
+Verify `/api/health` reports `paymentMode: test` first. This exercises HTTP 402 → test payment → receipt → queue → worker on deployed infrastructure. No client-controlled switch can enable sandbox mode. The sandbox probe is disabled in live mode. Do not run the validator against live payment endpoints without an explicit spending budget: the validator can move real funds.
+
+Verified receipts are saved to Redis before enqueueing; retrying the same credential recovers a saved receipt. There remains a crash window between Stripe settlement and saving the receipt. This test-only endpoint is **not** a production payment ledger or an exactly-once settlement guarantee. Durable reconciliation, quote binding, requester entitlements, refunds and a working acquisition handler are required before enabling paid data requests.
+
+References: [Stripe MPP](https://docs.stripe.com/payments/machine/mpp), [Stripe sandboxes](https://docs.stripe.com/sandboxes).
+
+## Current scope
+
+Implemented: environment distribution, request validation, Redis queue/leases/retries, authenticated diagnostic enqueue/status, worker polling for diagnostics, Stripe MPP sandbox probe code, and verification scripts. Live queue/Supabase checks are working. Stripe payment roundtrip and Vercel environment upload still require the external account access described above.
+
+`POST /api/v1/data/requests` currently returns 503 and never charges or enqueues work. Database tables/import, Pi execution, acquisition/publication, map rendering, backtests, quote lifecycle and paid data fulfillment are still pending.
 
 ## Build specifications
 
 - [Five-hour plan](BUILD-PLAN.md)
 - [Data requests and worker contract](DATA-REQUESTS.md)
 - [Platform roadmap](PLATFORM-ROADMAP.md)
-
-Put the Claude API key in `apps/worker/.env.local` as `ANTHROPIC_API_KEY`. Keep it on the worker machine. The `VERDANT_WORKER_TOKEN` will authenticate the worker to the API; the worker authentication endpoints are not implemented yet. Never put secret keys in `NEXT_PUBLIC_` variables.
 
 BetterStack log queries must use SQL API connections. Browser/UI log queries are prohibited.

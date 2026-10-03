@@ -7,16 +7,26 @@
   },
   "scripts": {
     "dev": "pnpm --parallel --filter @verdant/web --filter @verdant/api dev",
-    "dev:web": "pnpm --filter @verdant/web dev",
-    "dev:api": "pnpm --filter @verdant/api dev",
-    "worker:check": "pnpm --filter @verdant/worker check",
+    "dev:web": "node scripts/run-profile.mjs sandbox web pnpm exec next dev -p 3000",
+    "dev:api": "node scripts/run-profile.mjs sandbox api pnpm exec next dev -p 3001",
+    "worker:check": "node scripts/run-profile.mjs sandbox worker pnpm exec tsx src/index.ts --check",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
-    "test": "pnpm -r test"
+    "test": "pnpm -r test",
+    "env:sync": "node scripts/configure-env.mjs",
+    "queue:smoke": "tsx scripts/queue-smoke.ts",
+    "worker:sandbox": "node scripts/run-profile.mjs sandbox worker pnpm exec tsx src/index.ts --run",
+    "worker:production": "node scripts/run-profile.mjs production worker pnpm exec tsx src/index.ts --run",
+    "build:production": "node scripts/run-profile.mjs production api pnpm build && node scripts/run-profile.mjs production web pnpm build",
+    "services:smoke": "node scripts/services-smoke.mjs",
+    "vercel:sync": "node scripts/vercel-sync.mjs",
+    "stripe:sync": "node scripts/stripe-sync.mjs"
   },
   "devDependencies": {
     "@types/node": "26.6.4",
     "typescript": "7.0.2",
-    "tsx": "4.23.15"
-  }
+    "tsx": "4.23.15",
+    "@verdant/queue": "workspace:*"
+  },
+  "type": "module"
 }

@@ -10,6 +10,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@verdant/contracts": "workspace:*"
+    "@supabase/supabase-js": "2.117.2",
+    "@verdant/contracts": "workspace:*",
+    "@verdant/queue": "workspace:*"
   }
 }

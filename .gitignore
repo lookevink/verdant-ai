@@ -11,3 +11,5 @@ supabase/.temp/
 *.tsbuildinfo
 dist/
 .pnpm-store/
+
+.vercel/
