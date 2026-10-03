@@ -65,7 +65,7 @@ Target team: **Kevin Personal Projects** (`lookevinks-projects`). Two projects: 
 pnpm vercel:sync
 ```
 
-This script links/configures these projects, obtains the API's assigned domain, updates the local production origin, and uploads per-service environment values. Production uses `.env.production`; development/preview use `.env.local`. Secrets are uploaded through stdin and marked sensitive in production/preview. It does not deploy. Vercel currently needs an owner to create the projects and grant the logged-in account access.
+This script links/configures these projects, obtains the API's assigned domain, updates the local production origin, and uploads per-service environment values. Production uses `.env.production`; development/preview use `.env.local`. Secrets are uploaded through stdin and marked sensitive in production/preview. It does not deploy. Both projects now exist and are linked, and development/preview uploads have completed. Production sync was partially blocked by Vercel: `kevin-sendblue` lacks permission to create production environment variables. An owner must grant project-admin access or import each generated app `.env.production` into its corresponding project, scoped to production only. Then rerun sync to reconcile values. Environment changes apply to the next deployment.
 
 For paired previews, deploy the API preview first, then set the web preview's `API_ORIGIN` to that exact deployment URL before building. The sync script deliberately excludes the localhost origin from hosted previews. Vercel web builds fail if no API origin is configured. If preview deployment protection is enabled, configure authenticated server-to-server access before testing the proxy.
 
@@ -98,7 +98,7 @@ References: [Stripe MPP](https://docs.stripe.com/payments/machine/mpp), [Stripe 
 
 ## Current scope
 
-Implemented: environment distribution, request validation, pgmq queue/leases/retries, authenticated diagnostic enqueue/status, worker polling for diagnostics, Stripe MPP sandbox probe code, and verification scripts. Live queue/Supabase checks are working. Stripe payment roundtrip and Vercel environment upload still require the external account access described above.
+Implemented: environment distribution, request validation, pgmq queue/leases/retries, authenticated diagnostic enqueue/status, worker polling for diagnostics, Stripe MPP sandbox probe code, and verification scripts. Live queue/Supabase checks are working in both configuration profiles, including API → queue → worker completion. Production builds, typechecks and six tests pass. Stripe payment roundtrip and completion of Vercel production environment sync still require the external account access described above.
 
 `POST /api/v1/data/requests` currently returns 503 and never charges or enqueues work. Climate schemas, handoff import, catalog/observation/raster APIs and transactional publication RPCs are implemented; see [database setup and verification](supabase/README.md). Pi execution, source acquisition, map rendering, backtests, quote lifecycle HTTP routes and paid data fulfillment are still pending.
 

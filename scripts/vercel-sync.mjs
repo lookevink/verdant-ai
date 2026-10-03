@@ -1,4 +1,6 @@
 import { spawnSync } from 'node:child_process';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import os from 'node:os';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { readEnv, writeEnv, root } from './env-files.mjs';
@@ -6,8 +8,15 @@ import { readEnv, writeEnv, root } from './env-files.mjs';
 const scope='lookevinks-projects';
 function api(endpoint, method='GET', body) {
   const args=['api',endpoint,'--scope',scope,'--raw','--method',method];
-  if(body) args.push('--input','-');
-  const result=spawnSync('vercel',args,{input:body?JSON.stringify(body):undefined,encoding:'utf8'});
+  let temporary;
+  if(body) {
+    temporary=mkdtempSync(path.join(os.tmpdir(),'verdant-vercel-'));
+    const file=path.join(temporary,'request.json');
+    writeFileSync(file,JSON.stringify(body),{mode:0o600});args.push('--input',file);
+  }
+  let result;
+  try {result=spawnSync('vercel',args,{encoding:'utf8'});}
+  finally {if(temporary)rmSync(temporary,{recursive:true});}
   if(result.status!==0) {
     let diagnostic=result.stderr;
     for(const item of (Array.isArray(body)?body:[])) if(item.value) diagnostic=diagnostic.split(item.value).join('[REDACTED]');
@@ -42,19 +51,23 @@ for(const app of ['api','web']) {
     if(sync.status!==0) throw new Error('Local env sync failed.');
     console.log(`Production API origin: ${prod.API_ORIGIN}`);
   }
+  const existing=process.argv.includes('--missing-only')?api(`/v9/projects/${project.id}/env`).envs:[];
   for(const [file,targets] of [['.env.local',['development','preview']],['.env.production',['production']]]) {
     const values=await readEnv(path.join(root,'apps',app,file));
     for(const target of targets) {
       const vars=Object.entries(values).filter(([key,value])=>value && !(app==='web'&&key==='API_ORIGIN'&&target==='preview'))
         .map(([key,value])=>({key,value,target:[target],type:target==='development'?'encrypted':
           /SECRET|TOKEN/.test(key)?'sensitive':'encrypted'}));
+      let uploaded=0;
       for(const variable of vars) {
+        if(existing.some(e=>e.key===variable.key&&e.target?.includes(target)&&!e.gitBranch))continue;
         const args=['env','add',variable.key,target,'--scope',scope,'--cwd',path.join(root,'apps',app),'--yes','--force'];
-        if(variable.type==='sensitive')args.push('--sensitive');
+        args.push(variable.type==='sensitive'?'--sensitive':'--no-sensitive');
         const result=spawnSync('vercel',args,{input:variable.value,encoding:'utf8'});
-        if(result.status!==0)throw new Error(`Environment upload failed for ${name}/${target}/${variable.key}: ${result.stderr.split(variable.value).join('[REDACTED]')}`);
+        if(result.status!==0)throw new Error(`Environment upload failed for ${name}/${target}/${variable.key}: ${(result.stderr+'\n'+result.stdout).split(variable.value).join('[REDACTED]')} (exit ${result.status}, signal ${result.signal}, error ${result.error?.code??'none'})`);
+        uploaded++;
       }
-      console.log(`${name}/${target}: synced ${vars.length} variables`);
+      console.log(`${name}/${target}: synced ${uploaded} variables (${vars.length} managed)`);
     }
   }
 }
