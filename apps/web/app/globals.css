@@ -54,7 +54,7 @@ section { scroll-margin-top: 24px }
 .nav-cta { display: inline-flex; align-items: center; gap: 8px; padding: 11px 18px; border-radius: 999px; background: var(--moss); color: var(--lime); font-size: 14px; font-weight: 600 }
 
 /* Hero: sky, sun and a living meadow. */
-.hero { position: relative; display: flex; flex-direction: column; min-height: max(640px, 100svh); overflow: hidden; background: linear-gradient(180deg, var(--sky) 0%, #e6f5e6 34%, var(--haze) 58%, #e2f1c4 100%) }
+.hero { --horizon: 58%; position: relative; display: flex; flex-direction: column; min-height: max(640px, 100svh); overflow: hidden; background: linear-gradient(180deg, var(--sky) 0%, #e6f5e6 34%, var(--haze) 58%, #e2f1c4 100%) }
 .sun { position: absolute; top: -32vmax; right: -16vmax; width: 78vmax; aspect-ratio: 1; border-radius: 50%; pointer-events: none; background: radial-gradient(circle, rgba(255, 248, 205, .95) 0%, rgba(255, 230, 138, .5) 26%, rgba(255, 230, 138, 0) 62%); animation: breathe 10s ease-in-out infinite alternate }
 .hero-copy { position: relative; z-index: 2; width: 100%; max-width: calc(var(--max) + 2 * var(--gutter)); margin: 0 auto; padding: clamp(108px, 17svh, 176px) var(--gutter) 0 }
 .chip { display: inline-flex; align-items: center; gap: 10px; padding: 7px 14px 7px 10px; border-radius: 999px; background: rgba(251, 254, 246, .6); box-shadow: inset 0 0 0 1px rgba(6, 63, 37, .08); backdrop-filter: blur(8px); font-size: 13px; font-weight: 500; color: var(--ink-2); animation: rise .9s .1s var(--ease) both }
@@ -69,15 +69,30 @@ h1 .serif { font-size: 1.08em; line-height: .92; color: var(--fern); letter-spac
 .serif .h-word { padding-right: .12em; margin-right: -.12em }
 .swash { position: absolute; left: 0; bottom: -.04em; width: 100%; height: .22em; overflow: visible; fill: none; stroke: var(--lime); stroke-width: 7; stroke-linecap: round; z-index: -1; stroke-dasharray: 420; animation: draw-long 1.2s 1.05s var(--ease) both }
 .hero-row { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 24px 48px; margin-top: clamp(24px, 4svh, 40px) }
-.lede { max-width: 470px; font-size: clamp(16px, 1.3vw, 19px); line-height: 1.55; color: var(--ink-2); text-shadow: 0 0 24px var(--haze); animation: rise 1s .6s var(--ease) both }
+.lede { max-width: 470px; font-size: clamp(16px, 1.3vw, 19px); line-height: 1.55; color: var(--ink-2); text-shadow: 0 0 18px var(--haze), 0 0 4px rgba(244, 248, 220, .8); animation: rise 1s .6s var(--ease) both }
 .actions { display: flex; flex-wrap: wrap; gap: 12px; animation: rise 1s .72s var(--ease) both }
-.meadow { position: absolute; inset: auto 0 0; height: 52%; pointer-events: none }
-.ground { position: absolute; inset: 15% 0 0; background: linear-gradient(180deg, #b7e3b4, #9fd6a2 14%, #5ebd6a 34%, #23984a 56%, #0f7a3c 82%, var(--moss)) }
+.sky { position: absolute; inset: 0 0 auto; height: var(--horizon); overflow: hidden; pointer-events: none }
+.cloud { position: absolute; left: 0; top: var(--y); width: calc(26vw * var(--s)); aspect-ratio: 4; opacity: .85; filter: blur(3px); background: radial-gradient(42% 58% at 28% 62%, rgba(255, 255, 255, .95) 30%, rgba(255, 255, 255, 0) 72%), radial-gradient(34% 70% at 55% 42%, rgba(255, 255, 255, .95) 32%, rgba(255, 255, 255, 0) 72%), radial-gradient(30% 54% at 80% 64%, rgba(255, 255, 255, .9) 28%, rgba(255, 255, 255, 0) 70%); animation: cloud var(--t) linear infinite; animation-delay: var(--d) }
+.flock { position: absolute; left: 0; top: 0; animation: migrate 64s linear infinite; animation-delay: -8s }
+.bird { position: absolute; left: var(--x); top: var(--y); width: 14px; height: 6px; overflow: visible; fill: none; stroke: rgba(7, 42, 26, .5); stroke-width: 1.6; stroke-linecap: round; animation: flap .42s ease-in-out infinite alternate; animation-delay: calc(var(--i) * -.13s) }
+.ground { position: absolute; inset: var(--horizon) 0 0; background: linear-gradient(180deg, #b9dab6, #8cc589 12%, #3f8f4f 35%, #145a30 65%, var(--moss)) }
 .field { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; transition: opacity .5s }
 .field[data-ready] { opacity: 1 }
-.hero::after { content: ""; position: absolute; inset: auto 0 0; height: 90px; z-index: 1; pointer-events: none; background: linear-gradient(180deg, rgba(6, 63, 37, 0), var(--moss)) }
+.foreground { position: absolute; z-index: 1; bottom: -14px; width: 34%; height: 50%; fill: #04301b; filter: blur(5px); pointer-events: none; transform-origin: 0 100%; animation: rock 7s ease-in-out infinite alternate }
+.foreground.left { left: 0 }
+.foreground.right { right: 0; transform-origin: 100% 100%; animation-duration: 8.5s; animation-delay: -3s }
+.hero::after { content: ""; position: absolute; inset: auto 0 0; height: 160px; z-index: 1; pointer-events: none; background: linear-gradient(180deg, rgba(6, 63, 37, 0), var(--moss)) }
 .hero-foot { position: absolute; z-index: 3; left: 0; right: 0; bottom: 22px; display: flex; justify-content: space-between; max-width: calc(var(--max) + 2 * var(--gutter)); margin: auto; padding: 0 var(--gutter); font: 500 11px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: rgba(243, 250, 234, .78); animation: rise 1s 1.3s var(--ease) both }
-.scroll-cue { display: flex; align-items: center; gap: 12px }
+.scroll-cue, .foot-end { display: flex; align-items: center; gap: 12px }
+.foot-end { gap: 20px }
+.sound { display: inline-flex; align-items: center; gap: 10px; padding: 9px 13px; border: 0; border-radius: 999px; background: rgba(3, 38, 25, .4); box-shadow: inset 0 0 0 1px rgba(243, 250, 234, .2); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer; transition: background .3s }
+.sound:hover { background: rgba(3, 38, 25, .6) }
+.bars { display: flex; align-items: flex-end; gap: 2px; height: 12px }
+.bars i { width: 2px; height: 30%; border-radius: 1px; background: var(--lime); transition: height .3s }
+.sound[aria-pressed="true"] .bars i { animation: eq .8s ease-in-out infinite alternate }
+.sound[aria-pressed="true"] .bars i:nth-child(2) { animation-delay: -.3s }
+.sound[aria-pressed="true"] .bars i:nth-child(3) { animation-delay: -.55s }
+.sound[aria-pressed="true"] .bars i:nth-child(4) { animation-delay: -.15s }
 .scroll-cue i { position: relative; width: 1px; height: 34px; overflow: hidden; background: rgba(243, 250, 234, .25) }
 .scroll-cue i::after { content: ""; position: absolute; inset: 0; background: var(--lime); animation: trickle 2s var(--ease) infinite }
 
@@ -196,7 +211,8 @@ pre span { animation: type .35s var(--ease) both; animation-delay: calc(var(--i)
   .manifesto-stage { position: sticky; top: 0; height: 100svh; padding-block: 0 }
   .nav { animation: drop .9s var(--ease) both, glass linear both; animation-timeline: auto, scroll(root); animation-range: normal, 0 140px }
   .hero-copy { animation: lift linear both; animation-timeline: scroll(root); animation-range: 0 100svh }
-  .meadow { animation: sink linear both; animation-timeline: scroll(root); animation-range: 0 100svh }
+  .foreground { animation: rock 7s ease-in-out infinite alternate, approach linear both; animation-timeline: auto, scroll(root); animation-range: normal, 0 100svh }
+  .foreground.right { animation-duration: 8.5s, auto; animation-delay: -3s, 0s }
   .manifesto .w { animation: lit linear both; animation-timeline: --manifesto; animation-range: contain calc(var(--i) / var(--n) * 72%) contain calc(var(--i) / var(--n) * 72% + 6%) }
   .fragments span { opacity: 1; animation: scatter linear both; animation-timeline: --manifesto; animation-range: cover 0% cover 85% }
   .drift { animation: shove linear both; animation-timeline: view(); animation-range: cover }
@@ -225,7 +241,12 @@ pre span { animation: type .35s var(--ease) both; animation-delay: calc(var(--i)
 @keyframes breathe { to { transform: translate(-3vmax, 2vmax) scale(1.08); opacity: .85 } }
 @keyframes trickle { from { transform: translateY(-100%) } to { transform: translateY(100%) } }
 @keyframes lift { to { transform: translateY(-18svh); opacity: 0 } }
-@keyframes sink { to { transform: translateY(14%) } }
+@keyframes cloud { from { transform: translateX(-35vw) } to { transform: translateX(110vw) } }
+@keyframes migrate { from { transform: translate(-12vw, 26vh) } 45%, to { transform: translate(105vw, 8vh) } }
+@keyframes flap { to { transform: scaleY(-.6) } }
+@keyframes rock { from { rotate: -1.5deg } to { rotate: 2deg } }
+@keyframes approach { to { scale: 1.8; translate: 0 4% } }
+@keyframes eq { from { height: 25% } to { height: 100% } }
 @keyframes lit { from { color: rgba(243, 250, 234, .14) } }
 @keyframes scatter { from { transform: translateY(45vh) scale(.9); opacity: 0 } 15% { opacity: .9 } 60% { opacity: .55 } to { transform: translateY(-50vh) rotate(calc(var(--i) * 9deg - 50deg)) scale(.8); opacity: 0 } }
 @keyframes hover { to { transform: translate(var(--dx), -70px) } }
@@ -261,14 +282,17 @@ pre span { animation: type .35s var(--ease) both; animation-delay: calc(var(--i)
   .nav { padding-left: 12px }
   .nav-cta { padding: 10px 14px; font-size: 13px }
   .hero-copy { padding-top: 104px }
-  .meadow { height: 44% }
+  .hero { --horizon: 64% }
+  .foreground { display: none }
   .actions { width: 100% }
   .actions .button { flex: 1 1 auto; white-space: nowrap }
-  .hero-foot span:last-child { display: none }
+  .coords { display: none }
   .fields { grid-template-columns: 1fr }
   .facets { grid-template-columns: 1fr }
 }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto }
   *, *::before, *::after { animation: none !important; transition: none !important }
+  .cloud { transform: translateX(var(--x)) }
+  .flock { display: none }
 }

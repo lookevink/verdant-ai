@@ -13,3 +13,4 @@ dist/
 .pnpm-store/
 
 .vercel/
+.DS_Store

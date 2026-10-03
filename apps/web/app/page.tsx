@@ -1,6 +1,6 @@
 import { Fragment, type CSSProperties } from "react";
 import { exampleRequest } from "@verdant/contracts";
-import { Field } from "./field";
+import { Field, SoundToggle } from "./field";
 import { RequestForm } from "./request-form";
 
 const vars = (values: Record<string, string | number>) => values as CSSProperties;
@@ -21,6 +21,11 @@ const facets = [
   ["Coordinates", "WGS84 · EPSG:4326"], ["Data class", "Interpolated observation"], ["Missing data", "Preserved"], ["Formats", "CSV · JSON"],
 ];
 const nevers = ["Missing values → zero", "Coarse pixel → fine measurement", "Undocumented interpolation"];
+const clouds = [{ y: "6%", s: 1.25, t: "150s", d: "-40s", x: "6vw" }, { y: "19%", s: 0.8, t: "115s", d: "-95s", x: "62vw" }, { y: "2%", s: 0.95, t: "180s", d: "-150s", x: "84vw" }, { y: "30%", s: 0.55, t: "100s", d: "-12s", x: "38vw" }];
+
+function seeded(seed: number) {
+  return () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+}
 
 function Words({ text, from = 0 }: { text: string; from?: number }) {
   return text.split(" ").map((word, i) => <Fragment key={i}>{i > 0 && " "}<span className="h-word"><span style={vars({ "--i": from + i })}>{word}</span></span></Fragment>);
@@ -44,8 +49,7 @@ function Arrow() {
 
 // Deterministic grass silhouette for soft section edges; three groups sway out of phase.
 function GrassEdge({ className }: { className: string }) {
-  let seed = 11;
-  const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const random = seeded(11);
   const groups: string[] = ["", "", ""];
   for (let i = 0; i < 220; i++) {
     const x = Math.round(i * 9.1 + random() * 5), h = Math.round(16 + random() * 46), lean = Math.round((random() - 0.5) * 18), w = 2 + Math.round(random() * 2);
@@ -54,6 +58,21 @@ function GrassEdge({ className }: { className: string }) {
   return <svg className={`grass-edge ${className}`} viewBox="0 0 2000 64" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
     {groups.map((d, i) => <path key={i} d={d} />)}<rect y="62" width="2000" height="2" />
   </svg>;
+}
+
+// Out-of-focus blades close to the lens frame the meadow from the lower corners.
+function Foreground() {
+  const random = seeded(5);
+  return (["left", "right"] as const).map(side => {
+    const inward = side === "left" ? 1 : -1;
+    let d = "";
+    for (let i = 0; i < 9; i++) {
+      const x = Math.round((side === "left" ? -20 : 180) + random() * 300), h = Math.round(170 + random() * 240);
+      const lean = Math.round((random() * 0.9 - 0.25) * 150 * inward), w = Math.round(10 + random() * 16), bow = Math.round(lean * 0.2);
+      d += `M${x - w} 430Q${x + bow} ${430 - Math.round(h * 0.55)} ${x + lean} ${430 - h}Q${x + bow + Math.round(w * 0.3)} ${430 - Math.round(h * 0.55)} ${x + w} 430Z`;
+    }
+    return <svg key={side} className={`foreground ${side}`} viewBox="0 0 460 430" preserveAspectRatio={side === "left" ? "xMinYMax slice" : "xMaxYMax slice"} aria-hidden="true"><path d={d} /></svg>;
+  });
 }
 
 function RegionMap() {
@@ -87,8 +106,14 @@ export default function Page() {
             <div className="actions"><a className="button" href="#request">Query real data <Arrow /></a><a className="button ghost" href="#how">How it works</a></div>
           </div>
         </div>
-        <div className="meadow"><div className="ground" aria-hidden="true" /><Field /></div>
-        <div className="hero-foot"><span className="scroll-cue"><i />Scroll</span><span>Mildura, AU · 34.42°S 142.35°E</span></div>
+        <div className="sky" aria-hidden="true">
+          {clouds.map((cloud, i) => <span key={i} className="cloud" style={vars({ "--y": cloud.y, "--s": cloud.s, "--t": cloud.t, "--d": cloud.d, "--x": cloud.x })} />)}
+          <span className="flock">{[0, 1, 2, 3, 4].map(i => <svg key={i} className="bird" viewBox="0 0 20 8" style={vars({ "--i": i, "--x": `${i * 16}px`, "--y": `${Math.abs(i - 2) * 7}px` })}><path d="M1 6Q5 1 10 5Q15 1 19 6" /></svg>)}</span>
+        </div>
+        <div className="ground" aria-hidden="true" />
+        <Field />
+        <Foreground />
+        <div className="hero-foot"><span className="scroll-cue"><i />Scroll</span><span className="foot-end"><span className="coords">Mildura, AU · 34.42°S 142.35°E</span><SoundToggle /></span></div>
       </section>
 
       <section className="manifesto" aria-labelledby="problem">
