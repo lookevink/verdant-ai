@@ -1,8 +1,8 @@
 import { timingSafeEqual } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
-import { JobQueue, createRedisCommand, queueNamespace } from "@verdant/queue";
+import { JobQueue, createDatabaseRpc, queueNamespace } from "@verdant/queue";
 export function queue(lane:"probe"|"data_request") {
-  return new JobQueue(createRedisCommand(),queueNamespace(),lane);
+  return new JobQueue(createDatabaseRpc(),queueNamespace(),lane);
 }
 export function isAdmin(request:Request) {
   const expected=process.env.API_ADMIN_TOKEN;

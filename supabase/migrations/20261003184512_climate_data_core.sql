@@ -196,28 +196,28 @@ grant usage,select on all sequences in schema verdant to service_role;
 grant execute on all functions in schema verdant to service_role;
 
 create function public.verdant_catalog(p_environment text) returns jsonb
-language sql stable security invoker set search_path='' as $$
+language sql stable security invoker set search_path='' set extra_float_digits=3 as $$
  select coalesce(jsonb_agg(to_jsonb(d) order by d.dataset_key,d.id),'[]'::jsonb)
  from verdant.dataset_versions d where d.environment=p_environment and d.status='published' and d.access_level<>'restricted';
 $$;
 create function public.verdant_observations(p_environment text,p_dataset text,p_after text default '',p_limit integer default 1000) returns jsonb
-language sql stable security invoker set search_path='' as $$
+language sql stable security invoker set search_path='' set extra_float_digits=3 as $$
  select coalesce(jsonb_agg(to_jsonb(o) order by o.id),'[]'::jsonb) from (
  select o.* from verdant.observations o join verdant.dataset_versions d on (d.environment,d.id)=(o.environment,o.dataset_version_id)
  where o.environment=p_environment and o.dataset_version_id=p_dataset and o.id>p_after and d.status='published'
- order by o.id limit greatest(1,least(coalesce(p_limit,1000),1000))) o;
+ order by o.id limit greatest(1,least(coalesce(p_limit,1000),1001))) o;
 $$;
 create function public.verdant_raster_tile(p_environment text,p_dataset text,p_tile text) returns jsonb
-language sql stable security invoker set search_path='' as $$
+language sql stable security invoker set search_path='' set extra_float_digits=3 as $$
  select to_jsonb(t) from verdant.raster_tiles t join verdant.dataset_versions d on (d.environment,d.id)=(t.environment,t.dataset_version_id)
  where t.environment=p_environment and t.dataset_version_id=p_dataset and t.id=p_tile and d.status='published';
 $$;
-create function public.verdant_raster_index(p_environment text,p_dataset text) returns jsonb
-language sql stable security invoker set search_path='' as $$
+create function public.verdant_raster_index(p_environment text,p_dataset text,p_after text default '',p_limit integer default 100) returns jsonb
+language sql stable security invoker set search_path='' set extra_float_digits=3 as $$
  select coalesce(jsonb_agg(to_jsonb(t) order by t.id),'[]'::jsonb) from (
  select r.id,r.variable,r.unit,r.observed_on,r.width,r.height,r.crs,r.transform,r.bbox
  from verdant.raster_tiles r join verdant.dataset_versions d on (d.environment,d.id)=(r.environment,r.dataset_version_id)
- where r.environment=p_environment and r.dataset_version_id=p_dataset and d.status='published' order by r.id limit 1000) t;
+ where r.environment=p_environment and r.dataset_version_id=p_dataset and d.status='published' and r.id>p_after order by r.id limit greatest(1,least(coalesce(p_limit,100),1001))) t;
 $$;
 do $$ declare f record; begin
  for f in select oid::regprocedure as signature from pg_proc where pronamespace='public'::regnamespace and proname like 'verdant_%' loop

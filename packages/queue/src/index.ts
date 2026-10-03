@@ -1,5 +1,3 @@
-import { randomUUID } from "node:crypto";
-
 export type QueueJob = {
   id: string; kind: "probe" | "data_request"; payload: unknown;
   status: "queued" | "running" | "completed" | "failed";
@@ -7,128 +5,78 @@ export type QueueJob = {
   result?: unknown; error?: string;
 };
 export type ClaimedJob = { job: QueueJob; leaseToken: string };
-export type RedisCommand = (command: (string | number)[]) => Promise<unknown>;
+export type DatabaseRpc = (name: string, args: Record<string, unknown>) => Promise<unknown>;
 
-export function createRedisCommand(env: NodeJS.ProcessEnv = process.env): RedisCommand {
-  const url = env.UPSTASH_REDIS_REST_URL;
-  const token = env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token || new URL(url).protocol !== "https:") throw new Error("Redis HTTPS URL and token are required.");
-  return async command => {
-    const response = await fetch(url, {
-      method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify(command), signal: AbortSignal.timeout(15_000), cache: "no-store",
+/** Server-only transport. Credentials never enter queue payloads or provider errors. */
+export function createDatabaseRpc(env: NodeJS.ProcessEnv = process.env): DatabaseRpc {
+  const origin = env.SUPABASE_URL, key = env.SUPABASE_SECRET_KEY;
+  if (!origin || !key) throw new Error("Supabase server credentials are required.");
+  const url = new URL(origin);
+  if (url.protocol !== "https:" && !(url.protocol === "http:" && ["127.0.0.1", "localhost"].includes(url.hostname)))
+    throw new Error("Supabase requires HTTPS outside localhost.");
+  return async (name, args) => {
+    if (!/^verdant_[a-z_]+$/.test(name)) throw new Error("Invalid RPC name.");
+    const response = await fetch(new URL(`/rest/v1/rpc/${name}`, url), {
+      method: "POST", headers: { apikey: key, ...(key.startsWith("eyJ") ? { Authorization: `Bearer ${key}` } : {}),
+        "Content-Type": "application/json" },
+      body: JSON.stringify(args), signal: AbortSignal.timeout(15_000), cache: "no-store",
     });
-    if (!response.ok) throw new Error(`Redis request failed (HTTP ${response.status}).`);
-    const body = await response.json() as { result?: unknown; error?: string };
-    if (body.error) throw new Error("Redis command rejected."); // Do not log provider errors containing arguments.
-    return body.result;
+    if (!response.ok) {
+      // Supabase SQL error details may contain data; expose only the status/code.
+      const error = await response.json().catch(() => ({})) as { code?: string };
+      throw new Error(`Database RPC failed (HTTP ${response.status}, code ${error.code ?? "unknown"}).`);
+    }
+    return response.json();
   };
 }
 export function queueNamespace(env: NodeJS.ProcessEnv = process.env) {
-  if (!["sandbox","production"].includes(env.VERDANT_ENV ?? "")) throw new Error("VERDANT_ENV must be explicit.");
-  if (!["test","live"].includes(env.PAYMENT_MODE ?? "")) throw new Error("PAYMENT_MODE must be explicit.");
+  if (!["sandbox", "production"].includes(env.VERDANT_ENV ?? "")) throw new Error("VERDANT_ENV must be explicit.");
+  if (!["test", "live"].includes(env.PAYMENT_MODE ?? "")) throw new Error("PAYMENT_MODE must be explicit.");
   if (env.VERDANT_ENV === "sandbox" && env.PAYMENT_MODE === "live") throw new Error("Sandbox cannot use live payments.");
   const expected = `verdant:${env.VERDANT_ENV}:${env.PAYMENT_MODE}`;
   if (env.QUEUE_NAMESPACE !== expected) throw new Error("Queue namespace does not match the environment/payment mode.");
   return expected;
 }
-const time = `local t=redis.call('TIME'); local now=tonumber(t[1])*1000+math.floor(tonumber(t[2])/1000)\n`;
-const enqueue = time + `
-local current=redis.call('HGET',KEYS[1],ARGV[1])
-if current then
- local j=cjson.decode(current)
- if j.fingerprint ~= ARGV[3] then return redis.error_reply('ID_CONFLICT') end
- return current
-end
-local job=cjson.decode(ARGV[2]); job.createdAt=now; job.fingerprint=ARGV[3]
-local encoded=cjson.encode(job)
-redis.call('HSET',KEYS[1],ARGV[1],encoded)
-redis.call('ZADD',KEYS[2],now,ARGV[1])
-return encoded`;
-const claim = time + `
-local expired=redis.call('ZRANGEBYSCORE',KEYS[3],'-inf',now,'LIMIT',0,25)
-for _,id in ipairs(expired) do
- redis.call('ZREM',KEYS[3],id)
- redis.call('HDEL',KEYS[4],id)
- if redis.call('HEXISTS',KEYS[1],id)==1 then redis.call('ZADD',KEYS[2],now,id) end
-end
-for i=1,25 do
- local next=redis.call('ZRANGEBYSCORE',KEYS[2],'-inf',now,'LIMIT',0,1)
- if #next==0 then return nil end
- local id=next[1]; redis.call('ZREM',KEYS[2],id)
- local raw=redis.call('HGET',KEYS[1],id)
- if raw then
-  local job=cjson.decode(raw)
-  if job.attempts >= job.maxAttempts then
-   job.status='failed'; job.error='Retry budget exhausted'
-   redis.call('HSET',KEYS[1],id,cjson.encode(job))
-  else
-   job.attempts=job.attempts+1; job.status='running'
-   redis.call('HSET',KEYS[1],id,cjson.encode(job))
-   redis.call('HSET',KEYS[4],id,ARGV[1])
-   redis.call('ZADD',KEYS[3],now+tonumber(ARGV[2]),id)
-   return cjson.encode(job)
-  end
- end
-end
-return nil`;
-const finish = time + `
-if redis.call('HGET',KEYS[4],ARGV[1]) ~= ARGV[2] then return 0 end
-local expiry=redis.call('ZSCORE',KEYS[3],ARGV[1])
-if not expiry or tonumber(expiry)<=now then return 0 end
-local job=cjson.decode(redis.call('HGET',KEYS[1],ARGV[1]))
-redis.call('ZREM',KEYS[3],ARGV[1]); redis.call('HDEL',KEYS[4],ARGV[1])
-if ARGV[3]=='completed' then job.status='completed'; job.result=cjson.decode(ARGV[4])
-else
- job.error=ARGV[4]
- if job.attempts < job.maxAttempts then
-  job.status='queued'; redis.call('ZADD',KEYS[2],now+tonumber(ARGV[5]),ARGV[1])
- else job.status='failed' end
-end
-redis.call('HSET',KEYS[1],ARGV[1],cjson.encode(job))
-return 1`;
-const heartbeat = time + `
-if redis.call('HGET',KEYS[4],ARGV[1]) ~= ARGV[2] then return 0 end
-local expiry=redis.call('ZSCORE',KEYS[3],ARGV[1])
-if not expiry or tonumber(expiry)<=now then return 0 end
-redis.call('ZADD',KEYS[3],now+tonumber(ARGV[3]),ARGV[1]); return 1`;
-
+function leaseSeconds(ms: number) {
+  if (!Number.isInteger(ms) || ms < 1000 || ms > 900_000) throw new Error("Invalid lease duration (1–900 seconds).");
+  return Math.ceil(ms / 1000);
+}
 export class JobQueue {
-  private keys: string[];
-  constructor(private command: RedisCommand, namespace: string, private lane: "probe" | "data_request") {
-    if (!/^verdant:(sandbox|production):(test|live)(:smoke-[a-z0-9-]+)?$/.test(namespace))
-      throw new Error("Invalid queue namespace.");
-    const base = `{${namespace}}:${lane}`;
-    this.keys = ["jobs","ready","leases","tokens"].map(k => `${base}:${k}`);
+  constructor(private rpc: DatabaseRpc, private namespace: string, private lane: "probe" | "data_request") {
+    if (!/^verdant:(sandbox:test|production:(test|live))(:smoke)?$/.test(namespace)) throw new Error("Invalid queue namespace.");
   }
-  private async eval(script: string, args: (string|number)[]) {
-    return this.command(["EVAL",script,this.keys.length,...this.keys,...args]);
+  private call(name: string, args: Record<string, unknown> = {}) {
+    return this.rpc(name, { p_namespace: this.namespace, p_lane: this.lane, ...args });
   }
-  async enqueue(id: string, payload: unknown, fingerprint: string, kind: QueueJob["kind"], maxAttempts=3): Promise<QueueJob> {
-    if (kind !== this.lane) throw new Error("Job kind must match queue lane.");
+  async enqueue(id: string, payload: unknown, fingerprint: string, kind: QueueJob["kind"], maxAttempts = 3): Promise<QueueJob> {
     if (!/^[a-zA-Z0-9_-]{1,128}$/.test(id)) throw new Error("Invalid job ID.");
-    if (!Number.isInteger(maxAttempts) || maxAttempts<1 || maxAttempts>10) throw new Error("Invalid retry budget.");
-    const serialized=JSON.stringify({id,kind,payload,status:"queued",attempts:0,maxAttempts,createdAt:0});
-    if (Buffer.byteLength(serialized)>32_768) throw new Error("Job is too large; queue references, not files.");
-    return JSON.parse(await this.eval(enqueue,[id,serialized,fingerprint]) as string);
+    if (kind !== this.lane) throw new Error("Job kind must match queue lane.");
+    if (!Number.isInteger(maxAttempts) || maxAttempts < 1 || maxAttempts > 10) throw new Error("Invalid retry budget.");
+    if (!fingerprint || fingerprint.length > 256) throw new Error("Invalid fingerprint.");
+    const serialized = JSON.stringify(payload);
+    if (serialized === undefined || Buffer.byteLength(serialized) > 32_768) throw new Error("Job is too large or invalid; queue references, not files.");
+    return await this.call("verdant_enqueue", { p_id: id, p_payload: payload, p_fingerprint: fingerprint, p_max_attempts: maxAttempts }) as QueueJob;
   }
-  async claim(leaseMs=60_000): Promise<ClaimedJob|null> {
-    if (!Number.isInteger(leaseMs) || leaseMs<50 || leaseMs>900_000) throw new Error("Invalid lease duration.");
-    const leaseToken=randomUUID();
-    const result=await this.eval(claim,[leaseToken,leaseMs]);
-    return result ? {job:JSON.parse(result as string),leaseToken}:null;
+  async claim(leaseMs = 60_000): Promise<ClaimedJob | null> {
+    return await this.call("verdant_claim", { p_lease_seconds: leaseSeconds(leaseMs) }) as ClaimedJob | null;
   }
-  async get(id:string):Promise<QueueJob|null> {
-    const raw=await this.command(["HGET",this.keys[0]!,id]);
-    return raw ? JSON.parse(raw as string):null;
+  async get(id: string): Promise<QueueJob | null> {
+    return await this.call("verdant_get_job", { p_id: id }) as QueueJob | null;
   }
-  async complete(job:ClaimedJob,result:unknown) {
-    return (await this.eval(finish,[job.job.id,job.leaseToken,"completed",JSON.stringify(result),0])) === 1;
+  async complete(job: ClaimedJob, result: unknown) {
+    return await this.call("verdant_finish", { p_id: job.job.id, p_lease_token: job.leaseToken, p_success: true, p_result: result }) === true;
   }
-  async fail(job:ClaimedJob,message:string,retryMs=5_000) {
-    return (await this.eval(finish,[job.job.id,job.leaseToken,"failed",message.slice(0,300),retryMs])) === 1;
+  async fail(job: ClaimedJob, message: string, retryMs = 5_000) {
+    if (!Number.isInteger(retryMs) || retryMs < 0 || retryMs > 86_400_000) throw new Error("Invalid retry delay.");
+    return await this.call("verdant_finish", { p_id: job.job.id, p_lease_token: job.leaseToken, p_success: false,
+      p_error: message.slice(0, 300), p_retry_seconds: Math.ceil(retryMs / 1000) }) === true;
   }
-  async renew(job:ClaimedJob,leaseMs=60_000) {
-    return (await this.eval(heartbeat,[job.job.id,job.leaseToken,leaseMs])) === 1;
+  async renew(job: ClaimedJob, leaseMs = 60_000) {
+    return await this.call("verdant_renew", { p_id: job.job.id, p_lease_token: job.leaseToken, p_lease_seconds: leaseSeconds(leaseMs) }) === true;
+  }
+  async health() {
+    const result = await this.call("verdant_queue_health") as { pgmq: boolean; namespace: string };
+    if (!result.pgmq) throw new Error("pgmq queue is not provisioned.");
+    return result;
   }
 }

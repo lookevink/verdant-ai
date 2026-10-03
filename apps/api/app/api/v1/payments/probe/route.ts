@@ -1,6 +1,6 @@
 import { createHash, createHmac } from "node:crypto";
 import { Receipt } from "mppx";
-import { createRedisCommand, queueNamespace } from "@verdant/queue";
+import { createDatabaseRpc, queueNamespace } from "@verdant/queue";
 import { stripePayment } from "../../../../../src/lib/payments";
 import { queue } from "../../../../../src/lib/services";
 export async function GET(request:Request) {
@@ -10,12 +10,11 @@ export async function GET(request:Request) {
   try { payments=stripePayment(); }
   catch { return Response.json({error:"stripe_sandbox_not_configured"},{status:503}); }
   try {
-    const redis=createRedisCommand();
+    const rpc=createDatabaseRpc();
     const authorization=request.headers.get("authorization");
     const credentialKey=authorization ? createHmac("sha256",process.env.MPP_SECRET_KEY!)
       .update("verdant-payment-probe:"+authorization).digest("hex") : null;
-    const ledger=`{${queueNamespace()}}:payment-probe-receipts`;
-    const saved=credentialKey ? await redis(["HGET",ledger,credentialKey]) as string|null : null;
+    const saved=credentialKey ? await rpc("verdant_probe_receipt",{p_namespace:queueNamespace(),p_credential_hash:credentialKey}) as string|null : null;
     if(saved) {
       const receipt=Receipt.deserialize(saved);
       const id=createHash("sha256").update(receipt.method+":"+receipt.reference).digest("hex");
@@ -34,9 +33,9 @@ export async function GET(request:Request) {
     const receipt=Receipt.deserialize(encodedReceipt);
     // Bind fulfillment to the verified receipt, not caller-supplied idempotency data.
     if(!credentialKey) throw new Error("Payment credential is missing.");
-    await redis(["HSET",ledger,credentialKey,encodedReceipt]);
     const id=createHash("sha256").update(receipt.method+":"+receipt.reference).digest("hex");
-    await queue("probe").enqueue(id,{purpose:"mpp-sandbox-verification"},id,"probe");
+    await rpc("verdant_record_probe",{p_namespace:queueNamespace(),p_credential_hash:credentialKey,
+      p_provider:receipt.method,p_reference:receipt.reference,p_receipt:encodedReceipt,p_job_id:id});
     return payment.withReceipt(Response.json({id,status:"queued",paymentMode:"test",
       message:"Sandbox payment verified. Diagnostic job queued; no climate data was purchased."},{status:202}));
   } catch {

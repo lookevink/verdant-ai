@@ -10,7 +10,7 @@ Approved scope, 3 October 2026. This contract extends the five-hour demo plan. T
 - Read-only remote SQL inspection found no application tables and no installed PostGIS or PostGIS Raster extension. Do not assume the historical local backtests are in this hosted database. Import selected evidence deliberately.
 - Raster storage: externally decoded float arrays plus grid metadata, served by an API and rendered in the browser. Native raster import is not required.
 - Worker runtime: Pi coding agent using the Anthropic Claude API. User will supply the API key. Pi is installed locally as `@earendil-works/pi-coding-agent`; its installed documentation provides SDK sessions, RPC, typed tools and event subscriptions.
-- Monorepo boundaries: `apps/web` and `apps/api` are separate Next.js applications. `apps/worker` is a persistent Node.js/Pi service on the target machine. Shared request schemas live in `packages/contracts`. The worker pulls jobs through authenticated Upstash Redis REST calls; no inbound worker port is required. API and trusted worker supervisor hold database publication credentials; only the API holds payment credentials. Pi must not inherit either set of infrastructure credentials.
+- Monorepo boundaries: `apps/web` and `apps/api` are separate Next.js applications. `apps/worker` is a persistent Node.js/Pi service on the target machine. Shared request schemas live in `packages/contracts`. The worker pulls jobs through authenticated Supabase pgmq RPC calls; no inbound worker port is required. API and trusted worker supervisor hold database publication credentials; only the API holds payment credentials. Pi must not inherit either set of infrastructure credentials.
 - These are verified inventory facts and approved choices, not a claim that acquisition, MPP, or rendering has been implemented. See README.md for current implementation status.
 
 ## What an agent requests
@@ -58,7 +58,7 @@ Job states: `queued → acquiring → normalizing → validating → publishing 
 
 One quote purchase creates one logical job. Transactional uniqueness prevents duplicate enqueueing; worker leases prevent concurrent processing. Expired leases are recoverable, and publication is idempotent. A crash after payment must preserve the entitlement. If fulfillment fails permanently, reconcile a refund or credit according to an explicit policy; do not mark it refunded without confirmation from the payment rail.
 
-Store durable request entitlements, `request_events`, `dataset_versions`, artifact references and payment operations in Postgres. Use Upstash Redis for queued work, atomic claims, expiring leases and bounded retries, partitioned by environment and payment mode. Reconcile the Postgres entitlement with queue submission so a paid request cannot be lost. One polling worker process is enough for the demo; acquisition can outlast an HTTP request.
+Store durable request entitlements, `request_events`, `dataset_versions`, artifact references and payment operations in Postgres. Use pgmq for queued work, claims, expiring leases and bounded retries, partitioned by environment and payment mode. Create the Postgres entitlement and enqueue its pgmq message in the same transaction so a paid request cannot be lost. One polling worker process is enough for the demo; acquisition can outlast an HTTP request.
 
 ## Pi worker boundary
 

@@ -19,8 +19,6 @@ for (const [environment, file, current] of [
     SUPABASE_PROJECT_REF: 'ulspzrnnwrfbgldphjpe',
     SUPABASE_URL: 'https://ulspzrnnwrfbgldphjpe.supabase.co',
     SUPABASE_PUBLISHABLE_KEY: published ?? '', SUPABASE_SECRET_KEY: secret ?? '',
-    UPSTASH_REDIS_REST_URL: production.UPSTASH_REDIS_REST_URL ?? '',
-    UPSTASH_REDIS_REST_TOKEN: production.UPSTASH_REDIS_REST_TOKEN ?? '',
     PAYMENT_MODE: 'test', MPP_SECRET_KEY: randomBytes(32).toString('hex'),
     MPP_PRICE_USD: '0.50', STRIPE_SECRET_KEY: '', STRIPE_PROFILE_ID: '',
     VERDANT_WORKER_TOKEN: randomBytes(32).toString('hex'),
@@ -36,7 +34,7 @@ for (const [environment, file, current] of [
   values.QUEUE_NAMESPACE = `verdant:${environment}:${values.PAYMENT_MODE}`;
   await writeEnv(path.join(root, file), values);
   const common = ['VERDANT_ENV','PAYMENT_MODE','SUPABASE_PROJECT_REF','SUPABASE_URL','SUPABASE_PUBLISHABLE_KEY'];
-  const queue = ['QUEUE_NAMESPACE','UPSTASH_REDIS_REST_URL','UPSTASH_REDIS_REST_TOKEN'];
+  const queue = ['QUEUE_NAMESPACE'];
   const api = pick(values, [...common, ...queue, 'SUPABASE_SECRET_KEY','VERDANT_WORKER_TOKEN',
     'API_ADMIN_TOKEN','MPP_SECRET_KEY','MPP_PRICE_USD','STRIPE_SECRET_KEY','STRIPE_PROFILE_ID']);
   const worker = pick(values, [...common, ...queue, 'SUPABASE_SECRET_KEY','VERDANT_WORKER_TOKEN',
