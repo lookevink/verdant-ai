@@ -12,12 +12,10 @@ Representation is how values are encoded. Delivery is how and when a client rece
 | Agent query through MCP | Structured JSON values in the tool result | Available |
 | Native raster | Inline JSON tile/cell response | Available |
 | Tabular study evidence | Paginated inline JSON | Available |
-| Uncached SILO query | `202` from `/api/v1/data/requests`, poll, then a direct query of the published version | Available with a bearer token |
-| Large query or paid request | Durable asynchronous request with a stored artifact | Planned |
-| GeoTIFF, NetCDF, Parquet | Additional representations with their own validated adapters | Planned |
+| Data not published yet | `202` from `/api/v1/data/requests` after an MPP payment, poll, then a direct query of the published version | Available |
 
 The default query result is inline JSON. There is no `Content-Disposition: attachment` header. A client can save the body if it wants a file. The same query with `format: 'csv'` changes only the representation; source selection, cells and missingness rules remain identical.
 
-For an uncached SILO request, `/api/v1/data/requests` returns `202` and a request ID while acquisition runs; see the [request lifecycle](/concepts/request-lifecycle). Once it is `ready`, the values are served by the same direct query. A direct query never starts an acquisition, and nothing converts a query into a paid job: paid requests will require an explicit quote, and the client must enforce its own spending limit.
+For data that is not published yet, `/api/v1/data/requests` returns `202` and a request ID while acquisition runs; see the [request lifecycle](/concepts/request-lifecycle). Once it is `ready`, the values are served by the same direct query. A direct query never starts an acquisition or a payment; the client must pay an explicit MPP challenge and should enforce its own spending limit.
 
-Streaming and alternate representations will be advertised through capabilities only when implemented. Current pagination uses a stable cursor and an immutable dataset version. Clients should follow `nextCursor` rather than constructing offsets or assuming that one page is complete.
+Representations are advertised through capabilities. Current pagination uses a stable cursor and an immutable dataset version. Clients should follow `nextCursor` rather than constructing offsets or assuming that one page is complete.

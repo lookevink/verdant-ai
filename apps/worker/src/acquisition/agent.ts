@@ -39,13 +39,13 @@ function tools(ws: Workspace, signal: AbortSignal, budget: { calls: number }) {
   const dates = Type.Array(Type.String({ pattern: "^\\d{4}-\\d{2}-\\d{2}$" }), { minItems: 1, maxItems: 31 });
   return [
     defineTool({ name: "inspect_source", label: "Inspect source", executionMode: "sequential",
-      description: "List the source objects for every target date and report which dates are available. Read-only.",
+      description: "Check the source for every target date and report which dates are available. Read-only.",
       parameters: Type.Object({}), execute: async () => { guard(); return json(await inspectSource(ws, signal)); } }),
     defineTool({ name: "fetch_source", label: "Fetch source", executionMode: "sequential",
-      description: "Download source GeoTIFFs for the given target dates from the public SILO bucket. Already verified files are reused.",
+      description: "Download the source objects (files or server-side subsets) holding the given target dates from the target's source. Already verified objects are reused.",
       parameters: Type.Object({ dates }), execute: async (_id, p) => { guard(); return json(await fetchSource(ws, p.dates, signal)); } }),
     defineTool({ name: "normalize_source", label: "Normalize source", executionMode: "sequential",
-      description: "Decode fetched GeoTIFFs, check georeferencing, crop the target window and convert source nodata to null. Omit dates to normalize all target dates.",
+      description: "Decode fetched source objects, check the grid, coordinates and time axis, crop the target window and convert source nodata to null. Omit dates to normalize all target dates.",
       parameters: Type.Object({ dates: Type.Optional(dates) }), execute: async (_id, p) => { guard(); return json(await normalizeSource(ws, p.dates)); } }),
     defineTool({ name: "validate_output", label: "Validate output", executionMode: "sequential",
       description: "Run deterministic checks: complete period, canonical provenance, cell-for-cell reconciliation with source bytes, dimensions, finite and plausible values.",

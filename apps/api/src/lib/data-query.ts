@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { planAcquisition } from "@verdant/contracts/acquisition";
+import { datasetSource, planAcquisition, preferredSource } from "@verdant/contracts/acquisition";
 import { dataRequestSchema, deliveryLimits, queryResultSchema, type DataRequest, type Dataset, type TileIndex, type RasterTile, type QueryRow } from "@verdant/contracts";
 
 export type DataStore = {
@@ -40,14 +40,19 @@ async function plan(input: DataRequest, store: DataStore) {
   const days = (end - start) / 86_400_000 + 1;
   if (days > deliveryLimits.maxDays) throw new QueryError("request_too_large", 413);
   const dates = Array.from({ length: days }, (_, i) => new Date(start + i * 86_400_000).toISOString().slice(0, 10));
+  const variable = request.variables[0]!, unit = request.units[variable]!;
+  const preferred = preferredSource(request);
+  const rank = (d: Dataset) => [datasetSource(d) === preferred ? 0 : 1, Number(d.spatial_support.resolution_degrees ?? 1)] as const;
   const candidates = (await store.catalog()).filter(d =>
     d.access_level === "demo" && d.status === "published" &&
     (!request.dataset_version || d.id === request.dataset_version) &&
-    d.dataset_key.startsWith("silo-") && d.data_class === request.data_class &&
-    d.temporal_resolution === request.temporal_resolution && d.variables.air_temperature_max === request.units.air_temperature_max &&
+    (request.source_preference === "auto" ? datasetSource(d) !== null : datasetSource(d) === request.source_preference) &&
+    d.data_class === request.data_class && d.temporal_resolution === request.temporal_resolution && d.variables[variable] === unit &&
     d.spatial_support.crs === request.region.crs && d.bbox && contains(d.bbox, request.region.bbox) &&
     d.period_start <= request.period.start && d.period_end >= request.period.end
-  ).sort((a, b) => (b.published_at ?? "").localeCompare(a.published_at ?? "") || a.id.localeCompare(b.id));
+  // The source auto would acquire for this region first, then the finest grid, then the newest version.
+  ).sort((a, b) => rank(a)[0] - rank(b)[0] || rank(a)[1] - rank(b)[1] ||
+    (b.published_at ?? "").localeCompare(a.published_at ?? "") || a.id.localeCompare(b.id));
   let lastReason: Reason = "coverage_unavailable";
   for (const dataset of candidates) {
     const index = await store.tiles(dataset.id);
@@ -55,7 +60,7 @@ async function plan(input: DataRequest, store: DataStore) {
     let count = 0;
     for (const date of dates) {
       // This first adapter requires one covering tile per date. It never silently returns a partial region.
-      const tile = index.filter(t => t.observed_on === date && t.variable === "air_temperature_max" && t.unit === "degC" && contains(t.bbox, request.region.bbox))
+      const tile = index.filter(t => t.observed_on === date && t.variable === variable && t.unit === unit && contains(t.bbox, request.region.bbox))
         .sort((a, b) => a.id.localeCompare(b.id))[0];
       if (!tile) break;
       let selectedPixels;

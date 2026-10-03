@@ -66,16 +66,18 @@ for (const invalid of [{ ...input, format: "netcdf" }, { ...input, period: { sta
 const miss = await post("/api/v1/data/resolve", { ...input, period: { start: "2003-01-02", end: "2003-01-02" } });
 const missBody = await miss.json(); validate("Resolution", missBody); assert.equal(missBody.available, false);
 const hit = await post("/api/v1/data/requests", input); assert.equal(hit.status, 200); validate("DataRequestReady", await hit.json());
-// An uncached request without a bearer token is refused before anything is queued.
-const unqueued = await post("/api/v1/data/requests", { ...input, period: { start: "1890-01-01", end: "1890-01-01" } });
-assert.equal(unqueued.status, 401); validate("Error", await unqueued.json());
+// An uncached request without payment gets an MPP challenge; nothing is queued or charged.
+const unpaid = await post("/api/v1/data/requests", { ...input, period: { start: "1890-01-01", end: "1890-01-01" } });
+assert.equal(unpaid.status, 402); assert.match(unpaid.headers.get("www-authenticate") ?? "", /^Payment /);
 
 const client = new Client({ name: "verdant-contract-verifier", version: "1.0.0" });
 try {
   await client.connect(new StreamableHTTPClientTransport(new URL("/mcp", origin)));
   const { tools } = await client.listTools();
-  assert.equal(tools.length, 8);
-  assert.ok(tools.every(t => t.annotations?.readOnlyHint && !t.annotations?.destructiveHint));
+  assert.equal(tools.length, 10);
+  // Only request_data can start (paid) work; nothing is destructive.
+  assert.deepEqual(tools.filter(t => !t.annotations?.readOnlyHint).map(t => t.name), ["request_data"]);
+  assert.ok(tools.every(t => !t.annotations?.destructiveHint));
   const answer = await client.callTool({ name: "query_data", arguments: { ...input, dataset_version: resolved.selection.datasetVersion } });
   assert.ok(!answer.isError, JSON.stringify(answer));
   assert.deepEqual(answer.structuredContent, result);

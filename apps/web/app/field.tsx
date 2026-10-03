@@ -5,7 +5,7 @@ import { onPhase, readPhase } from "./sky";
 import { sound } from "./sound";
 
 type RGB = readonly [number, number, number];
-type Blade = { x: number; y: number; t: number; h: number; w: number; lean: number; phase: number; bend: number; delay: number; kind: number; odd: boolean };
+type Blade = { x: number; y: number; t: number; h: number; w: number; lean: number; phase: number; bend: number; delay: number; kind: number; odd: boolean; dither: number };
 type Flower = { blade: Blade; r: number; color: string; eye: string };
 type Band = { blades: Blade[]; flowers: Flower[]; fills: CanvasGradient[] };
 type Grade = { haze: RGB; tint: RGB; k: number; dim: number; glow: RGB; glowK: number; sheen: string; sheenAlpha: number; mist: number; shade: number; night: boolean; mote: string };
@@ -27,13 +27,17 @@ const grades: Record<Phase, Grade> = {
   golden: { haze: [246, 224, 178], tint: [255, 168, 60], k: 0.16, dim: 0.96, glow: [255, 210, 110], glowK: 0.5, sheen: "255,222,150", sheenAlpha: 0.34, mist: 0.2, shade: 0.8, night: false, mote: "#ffd98a" },
   dusk: { haze: [38, 66, 78], tint: [22, 42, 74], k: 0.42, dim: 0.42, glow: [160, 214, 204], glowK: 0.45, sheen: "150,210,200", sheenAlpha: 0.12, mist: 0.35, shade: 0, night: true, mote: "#d8ff8a" },
 };
+// Animated depth bands. The painted far field hands over to them across the seam ± overlap,
+// so no row of blade bases lines up into a visible edge.
 const edges = [0.3, 0.42, 0.54, 0.66, 0.78, 0.9, 1.15];
+const seam = edges[0]!, overlap = 0.07, far = seam + overlap;
 const blend = (a: RGB, b: RGB, k: number): RGB => [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k];
 const css = (c: RGB) => `rgb(${Math.round(c[0])},${Math.round(c[1])},${Math.round(c[2])})`;
 const rgba = (c: RGB, a: number) => `rgba(${Math.round(c[0])},${Math.round(c[1])},${Math.round(c[2])},${a})`;
 const hazeAt = (t: number) => Math.pow(1 - Math.min(t, 1), 3) * 0.9;
 const scaleAt = (t: number) => Math.max(0.012, Math.pow(t, 1.1));
 const ease = (t: number) => 1 - Math.pow(1 - Math.min(Math.max(t, 0), 1), 3);
+const handover = (t: number) => { const k = Math.min(Math.max((t - seam + overlap) / (2 * overlap), 0), 1); return k * k * (3 - 2 * k); };
 function seeded(seed: number) {
   return () => { seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t ^= t + Math.imul(t ^ (t >>> 7), 61 | t); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 }
@@ -54,7 +58,7 @@ export function Field() {
     const flies = [{ x: 0.3, y: 0.42, heading: 0.4, phase: 0, color: [255, 251, 232] as RGB }, { x: 0.72, y: 0.6, heading: 2.8, phase: 2.4, color: [255, 230, 128] as RGB }];
     const motes = Array.from({ length: 28 }, (_, i) => ({ x: Math.random(), y: Math.random(), size: 0.6 + Math.random() * 1.6, speed: 0.25 + Math.random() * 0.6, phase: i }));
     const fireflies = Array.from({ length: 44 }, () => ({ x: Math.random(), t: 0.06 + Math.random() * 0.85, lift: 0.3 + Math.random() * 0.5, phase: Math.random() * 6.3, speed: 0.4 + Math.random() * 0.6 }));
-    let grade = grades[readPhase()], bands: Band[] = [], shadow: CanvasGradient | null = null, fade: HTMLCanvasElement | null = null;
+    let grade = grades[readPhase()], bands: Band[] = [], shadow: CanvasGradient | null = null, glint: CanvasGradient | null = null, fade: HTMLCanvasElement | null = null;
     let width = 0, height = 0, horizon = 0, depth = 0, tallest = 0, widest = 0, dpr = 1, fadeStart = 0;
     let frame = 0, visible = true, born = 0, last = 0, nextGust = 1.2, sampled = 0, cost = 0, sparse = false, placed = false, tick = 0;
 
@@ -110,11 +114,12 @@ export function Field() {
       b.fillStyle = ground; b.fillRect(0, horizon - 1, width, height - horizon + 1);
       // The far field is painted once: fine blades in eight depth bins, three varieties, two tones.
       const paths = Array.from({ length: 48 }, () => new Path2D()), dots = blooms.map(() => new Path2D());
-      for (let t = 0.004; t < edges[0]!;) {
+      for (let t = 0.004; t < far;) {
         const s = scaleAt(t), h = tallest * s, y = horizon + depth * t, step = Math.max(2, h * 0.05);
         for (let x = random() * step; x < width; x += step * (0.5 + random())) {
+          if (random() < handover(t)) continue;
           const bh = h * (0.55 + random() * 0.6), bw = Math.max(0.45, widest * s * (0.6 + random() * 0.8)), tilt = (random() - 0.4) * 0.5;
-          const bin = Math.min(7, Math.floor((t / edges[0]!) * 8));
+          const bin = Math.min(7, Math.max(0, Math.floor((t / far + (random() - 0.5) / 8) * 8)));
           const path = paths[(bin * 3 + patch(x, t, s, random)) * 2 + (random() > 0.5 ? 1 : 0)]!;
           path.moveTo(x - bw, y); path.lineTo(x + tilt * bh, y - bh); path.lineTo(x + bw, y);
           if (random() < 0.01) { const r = Math.max(0.6, 5 * s); const dot = dots[Math.floor(random() * 3)]!; dot.moveTo(x + tilt * bh + r, y - bh); dot.arc(x + tilt * bh, y - bh, r, 0, Math.PI * 2); }
@@ -122,8 +127,8 @@ export function Field() {
         t += Math.max(1.4, h * 0.12) / depth;
       }
       paths.forEach((path, i) => {
-        const bin = Math.floor(i / 6), kind = palette[Math.floor(i / 2) % 3]!, t = ((bin + 0.5) / 8) * edges[0]!;
-        b.fillStyle = css(blend(blend(kind.base, kind.tip, i % 2 ? 0.85 : 0.5), grade.haze, hazeAt(t) * 0.95));
+        const bin = Math.floor(i / 6), kind = palette[Math.floor(i / 2) % 3]!, t = ((bin + 0.5) / 8) * far;
+        b.fillStyle = css(blend(blend(kind.base, kind.tip, i % 2 ? 0.85 : 0.5), grade.haze, hazeAt(t)));
         b.fill(path);
       });
       dots.forEach((dot, i) => { b.fillStyle = css(graded(blooms[i]![0])); b.globalAlpha = 0.8; b.fill(dot); });
@@ -132,6 +137,8 @@ export function Field() {
 
     function build() {
       const rect = canvas!.getBoundingClientRect();
+      // A canvas that is not laid out yet has nothing to paint; the ResizeObserver builds it once it has a size.
+      if (rect.width < 1 || rect.height < 1) return;
       if (Math.abs(rect.width - width) < 1 && Math.abs(rect.height - height) < 60) return;
       width = rect.width; height = rect.height;
       horizon = height * (parseFloat(getComputedStyle(canvas!).getPropertyValue("--horizon")) || 50) / 100;
@@ -142,38 +149,46 @@ export function Field() {
       const random = seeded(7);
       const palette = kinds.map(kind => ({ base: graded(kind.base), tip: blend(graded(kind.tip), grade.glow, grade.glowK * 0.3), lit: blend(graded(kind.lit), grade.glow, grade.glowK) }));
       paintBackdrop(random, palette);
-      bands = edges.slice(0, -1).map((top, i) => {
-        const bottom = edges[i + 1]!, mid = (top + bottom) / 2, mist = hazeAt(mid);
-        const blades: Blade[] = [], flowers: Flower[] = [];
-        for (let t = top; t < bottom;) {
-          const s = scaleAt(t), h = tallest * s, y = horizon + depth * t, step = h * 0.05;
-          for (let x = random() * step; x < width; x += step * (0.5 + random())) {
-            const blade: Blade = {
-              x, y: y + random() * 4, t, h: h * (0.55 + random() * 0.6), w: widest * s * (0.6 + random() * 0.8) / 2,
-              lean: (random() - 0.42) * 0.45, phase: random() * Math.PI * 2, bend: 0, kind: patch(x, t, s, random), odd: blades.length % 2 === 1,
-              delay: 0.15 + (x / width) * 0.6 + random() * 0.25 + (1 - Math.min(t, 1)) * 0.25,
-            };
-            blades.push(blade);
-            if (random() < 0.007) {
-              const [petal, eye] = blooms[random() < 0.3 ? 0 : random() < 0.55 ? 1 : 2]!;
-              flowers.push({ blade, r: Math.max(1.4, 6.5 * s), color: css(graded(petal)), eye: css(graded(eye)) });
-            }
-          }
-          t += (h * 0.12) / depth;
-        }
-        const y0 = horizon + depth * bottom, y1 = horizon + depth * top - tallest * scaleAt(mid);
+      bands = edges.slice(0, -1).map((edge, i) => {
+        const top = i ? edge : seam - overlap, bottom = edges[i + 1]!, mid = (edge + bottom) / 2, mist = hazeAt(mid);
+        // Distant blades show only their tops, so bases lighten toward the far field and meet its tone.
+        const lift = Math.min(Math.max((0.55 - mid) / 0.25, 0), 1);
+        const y0 = horizon + depth * (bottom + 0.04), y1 = horizon + depth * (top - 0.04) - tallest * scaleAt(mid);
         const fills = palette.flatMap(kind => {
-          const base = blend(kind.base, grade.haze, mist), tip = blend(kind.tip, grade.haze, mist * 0.8), lit = blend(kind.lit, grade.haze, mist * 0.6);
+          const base = blend(blend(kind.base, blend(kind.base, kind.tip, 0.55), lift), grade.haze, mist), tip = blend(kind.tip, grade.haze, mist * 0.8), lit = blend(kind.lit, grade.haze, mist * 0.6);
           return [[base, blend(base, tip, 0.6), tip], [base, tip, lit], [blend(base, tip, 0.5), lit, blend(lit, [255, 255, 240], grade.night ? 0.15 : 0.4)]].map(stops => {
             const gradient = ctx!.createLinearGradient(0, y0, 0, y1);
             stops.forEach((stop, k) => gradient.addColorStop(k / 2, css(stop)));
             return gradient;
           });
         });
-        return { blades, flowers, fills };
+        return { blades: [], flowers: [], fills };
       });
+      // Band membership is jittered so colour steps between bands dissolve instead of forming lines.
+      let count = 0;
+      for (let t = seam - overlap; t < edges.at(-1)!;) {
+        const s = scaleAt(t), h = tallest * s, y = horizon + depth * t, step = h * 0.05;
+        for (let x = random() * step; x < width; x += step * (0.5 + random())) {
+          if (random() > handover(t)) continue;
+          const jittered = t + (random() - 0.5) * 0.08;
+          const band = bands[Math.max(0, edges.findIndex((edge, i) => i === edges.length - 2 || jittered < edges[i + 1]!))]!;
+          const blade: Blade = {
+            x, y: y + random() * 4, t, h: h * (0.55 + random() * 0.6), w: widest * s * (0.6 + random() * 0.8) / 2,
+            lean: (random() - 0.42) * 0.45, phase: random() * Math.PI * 2, bend: 0, kind: patch(x, t, s, random), odd: count++ % 2 === 1, dither: random() - 0.5,
+            delay: 0.15 + (x / width) * 0.6 + random() * 0.25 + (1 - Math.min(t, 1)) * 0.25,
+          };
+          band.blades.push(blade);
+          if (random() < 0.007) {
+            const [petal, eye] = blooms[random() < 0.3 ? 0 : random() < 0.55 ? 1 : 2]!;
+            band.flowers.push({ blade, r: Math.max(1.4, 6.5 * s), color: css(graded(petal)), eye: css(graded(eye)) });
+          }
+        }
+        t += (h * 0.12) / depth;
+      }
       shadow = ctx!.createRadialGradient(0, 0, 0, 0, 0, 1);
       shadow.addColorStop(0, `rgba(2,36,20,${0.26 * grade.shade})`); shadow.addColorStop(0.55, `rgba(2,36,20,${0.13 * grade.shade})`); shadow.addColorStop(1, "rgba(2,36,20,0)");
+      glint = ctx!.createRadialGradient(0, 0, 0, 0, 0, 1);
+      glint.addColorStop(0, `rgba(${grade.sheen},${grade.sheenAlpha * 1.1})`); glint.addColorStop(0.45, `rgba(${grade.sheen},${grade.sheenAlpha * 0.5})`); glint.addColorStop(1, `rgba(${grade.sheen},0)`);
       if (!placed) {
         placed = true;
         for (const shade of shades) shade.x *= width;
@@ -183,6 +198,7 @@ export function Field() {
     }
 
     function draw(now: number) {
+      if (!width) return;
       const t = still ? 9 : (now - born) / 1000, time = still ? 0 : t;
       const dt = Math.min((now - (last || now)) / 1000, 0.05);
       last = now;
@@ -200,14 +216,14 @@ export function Field() {
       ctx!.globalAlpha = still ? 1 : ease(t / 0.9);
       ctx!.drawImage(backdrop, 0, 0, width, height);
       ctx!.globalAlpha = 1;
-      // Gusts show as travelling sheen on the distant grass, where single blades are too small to read.
+      // Gusts show as a soft travelling sheen on the distant grass, where single blades are too small to read.
       ctx!.save();
-      ctx!.beginPath(); ctx!.rect(0, horizon, width, depth); ctx!.clip();
       ctx!.globalCompositeOperation = "source-atop";
+      ctx!.fillStyle = glint!;
       for (const g of gusts) {
-        const sheen = ctx!.createLinearGradient(g.x - g.size * 1.6, 0, g.x + g.size * 1.6, 0);
-        sheen.addColorStop(0, `rgba(${grade.sheen},0)`); sheen.addColorStop(0.5, `rgba(${grade.sheen},${grade.sheenAlpha * g.power})`); sheen.addColorStop(1, `rgba(${grade.sheen},0)`);
-        ctx!.fillStyle = sheen; ctx!.fillRect(g.x - g.size * 1.6, horizon, g.size * 3.2, depth);
+        ctx!.globalAlpha = Math.min(1, g.power);
+        ctx!.setTransform(dpr * g.size * 1.8, 0, 0, dpr * depth * 0.24, dpr * g.x, dpr * (horizon + depth * 0.17));
+        ctx!.fillRect(-1, -1, 2, 2);
       }
       ctx!.restore();
       if (grade.mist) {
@@ -239,7 +255,8 @@ export function Field() {
           const h = blade.h * grow * (1 + rise * blade.t * 1.8), w = blade.w;
           const tipX = blade.x + angle * h * 0.85, tipY = blade.y - h * (1 - Math.min(angle * angle * 0.22, 0.5));
           const cx = blade.x + angle * h * 0.18, cy = blade.y - h * 0.55;
-          const path = paths[blade.kind * 3 + Math.min(2, Math.floor((gust * 0.8 + Math.abs(blade.bend) * 0.7 + wave * 0.8) * 3))]!;
+          // Dithering the light level per blade feathers the edges of lit patches.
+          const path = paths[blade.kind * 3 + Math.min(2, Math.max(0, Math.floor((gust * 0.8 + Math.abs(blade.bend) * 0.7 + wave * 0.8) * 3 + blade.dither * 0.9)))]!;
           path.moveTo(blade.x - w, blade.y);
           path.quadraticCurveTo(cx - w * 0.4, cy, tipX, tipY);
           path.quadraticCurveTo(cx + w * 0.4, cy, blade.x + w, blade.y);

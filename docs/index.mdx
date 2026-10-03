@@ -5,7 +5,7 @@ description: "Query versioned climate data through one contract, directly from H
 
 Verdant serves climate data with explicit units, spatial support, missingness, and source lineage. An agent describes the data it needs; the response includes the values and the evidence needed to interpret them.
 
-The current API serves two published public demo datasets: SILO maximum air temperature around Mildura on **1 January 2003**, and CSIRO observed irrigation-program evidence from **2003–2005**. These have different meanings and are not interchangeable.
+Daily maximum and minimum temperature and precipitation are available for Australia from SILO, the contiguous United States from NOAA nClimGrid-Daily, and global land from NOAA CPC. Published versions are served directly; anything not published yet is acquired from the source on request. The catalog also includes study evidence such as CSIRO observed irrigation programs (2003–2005). Different datasets have different meanings and are not interchangeable.
 
 <Steps>
   <Step title="Discover">Read capabilities and the dataset catalog to learn which operations and coverage actually exist.</Step>
@@ -19,7 +19,7 @@ The current API serves two published public demo datasets: SILO maximum air temp
 </CardGroup>
 
 <Note>
-Public demo reads are free and need no API key. Authorized clients can request SILO maximum temperature that is not yet published; it is acquired, validated and published asynchronously (see the [request lifecycle](/concepts/request-lifecycle)). Quotes and payments are not enabled yet. The capabilities endpoint is the authoritative feature inventory; valid syntax alone does not mean data is available.
+Reading published data is free and needs no API key. New data is acquired, validated and published asynchronously, paid per acquisition with MPP (see the [request lifecycle](/concepts/request-lifecycle)). The capabilities endpoint is the authoritative feature inventory; valid syntax alone does not mean data is available.
 </Note>
 
 The [OpenAPI 3.1 specification](https://api.verdant-ai.com/api/v1/openapi.json) and this reference are generated from the same shared runtime schemas. `/api/v1` defines the major contract version. Additive fields may appear; clients should ignore fields they do not recognize.

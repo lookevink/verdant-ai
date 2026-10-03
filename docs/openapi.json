@@ -3,12 +3,12 @@
   "info": {
     "title": "Verdant Climate Data API",
     "version": "1.0.0",
-    "description": "Versioned climate data with preserved meaning. Discover → inspect → resolve → query. Small published-data queries return values directly, with explicit units, spatial support, missingness and provenance. Public demo endpoints require no credentials. Missing coverage can be acquired asynchronously by authorized clients through /api/v1/data/requests; paid acquisition is not enabled. Consult capabilities before planning a workflow."
+    "description": "Versioned climate data with preserved meaning. Discover → inspect → resolve → query. Small published-data queries return values directly, with explicit units, spatial support, missingness and provenance. Reading published data requires no credentials. Missing coverage is acquired from the source on request through /api/v1/data/requests, paid per acquisition with MPP. Consult capabilities before planning a workflow."
   },
   "servers": [
     {
       "url": "https://api.verdant-ai.com",
-      "description": "Production (public demo data; payment test mode)"
+      "description": "Production"
     }
   ],
   "security": [],
@@ -81,7 +81,7 @@
           "Discovery"
         ],
         "summary": "List datasets",
-        "description": "List published catalog metadata. Demo datasets can be read without payment; paid metadata does not grant data access. Restricted datasets are omitted.",
+        "description": "List published catalog metadata. Published public datasets can be read without payment. Restricted datasets are omitted.",
         "responses": {
           "200": {
             "description": "Published dataset metadata.",
@@ -158,7 +158,7 @@
             }
           },
           "404": {
-            "description": "Unknown, unpublished, or unavailable under public demo access.",
+            "description": "Unknown, unpublished, or not publicly accessible.",
             "content": {
               "application/json": {
                 "schema": {
@@ -307,7 +307,7 @@
           "Queries"
         ],
         "summary": "Resolve coverage",
-        "description": "Check complete published demo coverage for a structured climate query. Returns the selected immutable version and row count, or an explicit unavailable reason; acquisitionEnabled reports whether POST /api/v1/data/requests can acquire a miss. Does not acquire data or charge.",
+        "description": "Check complete published coverage for a structured climate query. Returns the selected immutable version and row count, or an explicit unavailable reason; acquisitionEnabled reports whether POST /api/v1/data/requests can acquire a miss. Does not acquire data or charge.",
         "requestBody": {
           "required": true,
           "description": "A bounded climate query. JSON is the default representation. The response contains data directly; no download or acquisition job is required.",
@@ -417,7 +417,7 @@
           "Queries"
         ],
         "summary": "Query data directly",
-        "description": "Return climate data directly in the response, with provenance. JSON includes a manifest and data array; CSV returns rows with version, digest and metadata-link headers. Only published public demo data is admitted. No charging, acquisition or missing-to-zero conversion.",
+        "description": "Return climate data directly in the response, with provenance. JSON includes a manifest and data array; CSV returns rows with version, digest and metadata-link headers. Only published public data is admitted. No charging, acquisition or missing-to-zero conversion.",
         "requestBody": {
           "required": true,
           "description": "A bounded climate query. JSON is the default representation. The response contains data directly; no download or acquisition job is required.",
@@ -591,7 +591,7 @@
             }
           }
         ],
-        "description": "Read public demo observations in stable ID order. Native dates and season labels remain distinct; a missing value is null, not zero. Follow nextCursor until null.",
+        "description": "Read public observations in stable ID order. Native dates and season labels remain distinct; a missing value is null, not zero. Follow nextCursor until null.",
         "responses": {
           "200": {
             "description": "One observation page.",
@@ -614,7 +614,7 @@
             }
           },
           "404": {
-            "description": "Unknown, unpublished, or unavailable under public demo access.",
+            "description": "Unknown, unpublished, or not publicly accessible.",
             "content": {
               "application/json": {
                 "schema": {
@@ -694,7 +694,7 @@
             }
           }
         ],
-        "description": "Only public demo data. Cells are top-down row-major: cells[row * width + col]. NULL is preserved. Affine [a,b,c,d,e,f] maps pixel centers to x=a*(col+.5)+b*(row+.5)+c and y=d*(col+.5)+e*(row+.5)+f.",
+        "description": "Only public data. Cells are top-down row-major: cells[row * width + col]. NULL is preserved. Affine [a,b,c,d,e,f] maps pixel centers to x=a*(col+.5)+b*(row+.5)+c and y=d*(col+.5)+e*(row+.5)+f.",
         "responses": {
           "200": {
             "description": "Paginated index without tile; complete bounded tile when tile is supplied.",
@@ -724,7 +724,7 @@
             }
           },
           "404": {
-            "description": "Unknown, unpublished, or unavailable under public demo access.",
+            "description": "Unknown, unpublished, or not publicly accessible.",
             "content": {
               "application/json": {
                 "schema": {
@@ -827,7 +827,7 @@
             }
           },
           "404": {
-            "description": "Unknown, unpublished, or unavailable under public demo access.",
+            "description": "Unknown, unpublished, or not publicly accessible.",
             "content": {
               "application/json": {
                 "schema": {
@@ -866,8 +866,12 @@
           "Queries"
         ],
         "summary": "Request data, acquiring a cache miss",
-        "description": "Resolve the request against published data. A cache hit returns 200 with the immutable version to query. A miss that maps onto a supported SILO target is queued for acquisition (202) and needs a bearer token; identical in-flight or recently failed targets are reused rather than re-queued. Poll the Location URL, then POST the same body to /api/v1/data/query once ready. Never charges.",
+        "description": "Get data that may not be published yet. Published coverage returns ready (free). An identical acquisition already running returns its request (free). Otherwise the request is acquired from the source for a fixed MPP price: the first call returns a payment challenge, and the paid retry returns a request ID and receipt. Poll the request until ready, then query. Requests outside source coverage are rejected before any charge. Over HTTP the challenge is a 402 with WWW-Authenticate: Payment (Stripe shared payment token); retry with Authorization: Payment and keep the same credential for any retry. Then POST the same body to /api/v1/data/query once ready.",
         "security": [
+          {},
+          {
+            "mppPayment": []
+          },
           {
             "bearerToken": []
           }
@@ -912,7 +916,7 @@
         },
         "responses": {
           "200": {
-            "description": "Cache hit: published coverage already satisfies the request.",
+            "description": "Cache hit: published coverage already satisfies the request (free).",
             "content": {
               "application/json": {
                 "schema": {
@@ -922,7 +926,7 @@
             }
           },
           "202": {
-            "description": "Cache miss accepted (or an identical acquisition reused). Poll the Location URL.",
+            "description": "Acquisition queued after payment, or an identical running acquisition (free). Poll the Location URL.",
             "headers": {
               "Location": {
                 "description": "Status URL for this acquisition.",
@@ -934,6 +938,12 @@
                 "description": "Suggested polling delay in seconds.",
                 "schema": {
                   "type": "integer"
+                }
+              },
+              "Payment-Receipt": {
+                "description": "MPP receipt when this call paid (or recovered a payment).",
+                "schema": {
+                  "type": "string"
                 }
               }
             },
@@ -955,12 +965,13 @@
               }
             }
           },
-          "401": {
-            "description": "acquisition_unauthorized: the request is a miss and acquisition needs a bearer token.",
-            "content": {
-              "application/json": {
+          "402": {
+            "description": "Payment required for a new acquisition. application/problem+json with the challenge in WWW-Authenticate.",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "MPP Payment challenge (method stripe, intent charge).",
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "type": "string"
                 }
               }
             }
@@ -995,6 +1006,16 @@
               }
             }
           },
+          "502": {
+            "description": "payment_or_fulfillment_failed: retry with the same credential to recover without a second charge.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "503": {
             "description": "Data service unavailable.",
             "content": {
@@ -1015,7 +1036,7 @@
           "Queries"
         ],
         "summary": "Poll an acquisition",
-        "description": "Processing state (queued → acquiring → normalizing → validating → publishing → ready, or failed), attempts, sanitized tool and validation events, and the published datasetVersion once ready. Failed acquisitions include error.reason. Polling never charges.",
+        "description": "Acquisition state (queued → acquiring → normalizing → validating → publishing → ready, or failed), attempts, sanitized tool and validation events, payments, and the published datasetVersion once ready. Failed paid acquisitions are refunded. Polling never charges.",
         "parameters": [
           {
             "name": "id",
@@ -1083,7 +1104,9 @@
             "items": {
               "type": "string",
               "enum": [
-                "air_temperature_max"
+                "air_temperature_max",
+                "air_temperature_min",
+                "precipitation_amount"
               ]
             }
           },
@@ -1163,12 +1186,18 @@
               "air_temperature_max": {
                 "type": "string",
                 "const": "degC"
+              },
+              "air_temperature_min": {
+                "type": "string",
+                "const": "degC"
+              },
+              "precipitation_amount": {
+                "type": "string",
+                "const": "mm"
               }
             },
-            "required": [
-              "air_temperature_max"
-            ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "description": "Exactly one entry, for the requested variable."
           },
           "data_class": {
             "type": "string",
@@ -1187,11 +1216,18 @@
             "const": "preserve"
           },
           "source_preference": {
+            "default": "auto",
+            "description": "auto picks the finest source covering the region: SILO (Australia), NOAA nClimGrid-Daily (contiguous US), NOAA CPC (global).",
             "type": "string",
-            "const": "silo"
+            "enum": [
+              "auto",
+              "silo",
+              "nclimgrid",
+              "cpc"
+            ]
           },
           "dataset_version": {
-            "description": "Pin an immutable published dataset version. Omit to choose a compatible public demo version.",
+            "description": "Pin an immutable published dataset version. Omit to choose a compatible public version.",
             "type": "string",
             "pattern": "^[a-zA-Z0-9_-]{1,128}$"
           }
@@ -1204,8 +1240,7 @@
           "spatial_resolution",
           "units",
           "data_class",
-          "missing_policy",
-          "source_preference"
+          "missing_policy"
         ],
         "additionalProperties": false,
         "description": "Data meaning is independent of representation and delivery. JSON (default) and CSV are returned inline. Bbox order: west,south,east,north; no antimeridian crossing. Date bounds inclusive; at most 31 days and 10,000 cells; actual coverage must pass resolve. dataset_version pins reproducibility."
@@ -2530,13 +2565,48 @@
               "endpoint": {
                 "type": "string"
               },
+              "mcpTool": {
+                "type": "string"
+              },
               "access": {
+                "type": "string"
+              },
+              "payment": {
                 "type": "string"
               },
               "sources": {
                 "type": "array",
                 "items": {
-                  "type": "string"
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "coverage": {
+                      "type": "string"
+                    },
+                    "resolutionDegrees": {
+                      "type": "number"
+                    },
+                    "firstDate": {
+                      "type": "string"
+                    },
+                    "latencyDays": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "coverage",
+                    "resolutionDegrees",
+                    "firstDate",
+                    "latencyDays"
+                  ],
+                  "additionalProperties": false
                 }
               },
               "variables": {
@@ -2544,12 +2614,6 @@
                 "items": {
                   "type": "string"
                 }
-              },
-              "firstDate": {
-                "type": "string"
-              },
-              "latestDate": {
-                "type": "string"
               },
               "maxDays": {
                 "type": "number"
@@ -2566,11 +2630,11 @@
             },
             "required": [
               "endpoint",
+              "mcpTool",
               "access",
+              "payment",
               "sources",
               "variables",
-              "firstDate",
-              "latestDate",
               "maxDays",
               "states",
               "description"
@@ -2599,10 +2663,15 @@
       }
     },
     "securitySchemes": {
+      "mppPayment": {
+        "type": "http",
+        "scheme": "payment",
+        "description": "Machine Payments Protocol credential for a new acquisition, issued in response to a 402 challenge."
+      },
       "bearerToken": {
         "type": "http",
         "scheme": "bearer",
-        "description": "Required only to queue acquisitions for cache misses."
+        "description": "Operator token: queues acquisitions without payment."
       }
     }
   }

@@ -10,7 +10,7 @@ curl https://api.verdant-ai.com/api/v1/capabilities
 curl https://api.verdant-ai.com/api/v1/datasets
 ```
 
-Catalog entries describe actual date coverage, units, source files and hashes, licenses, and spatial support. `demo` data can be read without credentials. Catalog visibility for `paid` data is not an entitlement to read it.
+Catalog entries describe actual date coverage, units, source files and hashes, licenses, and spatial support. Published data can be read without credentials.
 
 ## 2. Resolve and query
 
@@ -58,3 +58,21 @@ The result is `{ manifest, data }`. Each row has `date`, `longitude`, `latitude`
 Send the same request to `/api/v1/data/query` with `format: 'csv'` and read `response.text()`. It returns CSV **in the response body**. Saving it to a file is the client's choice. Empty CSV value fields mean missing; numeric zero remains zero. The headers include `Verdant-Dataset-Version`, `Verdant-Request-SHA256`, `Content-Digest`, and a `Link` to source metadata.
 
 For tabular trial evidence, list `/api/v1/datasets`, select the CSIRO version, and follow `/api/v1/datasets/{id}/observations?limit=100`. Continue with `after=nextCursor` until `nextCursor` is null. Do not treat harvest-season outcomes as daily measurements.
+
+## 4. Request data that is not published yet
+
+Send the same body to `/api/v1/data/requests`. Published coverage returns `200` with the version to query, free. Otherwise the call returns `402` with an MPP payment challenge; an MPP client pays it and retries automatically:
+
+```javascript
+import { Mppx, stripe } from 'mppx/client';
+
+const payer = Mppx.create({ polyfill: false, methods: [stripe.charge({ createToken /* mints a Stripe shared payment token */ })] });
+const accepted = await payer.fetch(api + '/api/v1/data/requests', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ ...request, region: { bbox: [-98.1, 38.4, -98.0, 38.5], crs: 'EPSG:4326' }, period: { start: '2010-07-01', end: '2010-07-07' } })
+});
+const { links } = await accepted.json(); // 202, with a Payment-Receipt header
+```
+
+Poll `links.self` until `status` is `ready` (usually under a minute), then query as in step 2. `source_preference` defaults to `auto`, which picks NOAA nClimGrid-Daily for this Kansas box. See the [request lifecycle](/concepts/request-lifecycle) for sources, retries and refunds.

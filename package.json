@@ -26,6 +26,7 @@
     "worker:sandbox": "node scripts/run-profile.mjs sandbox worker pnpm exec tsx src/index.ts --run",
     "worker:production": "node scripts/run-profile.mjs production worker pnpm exec tsx src/index.ts --run",
     "worker:playground": "node scripts/run-profile.mjs sandbox worker pnpm exec tsx src/index.ts --playground",
+    "worker:service": "node scripts/worker-service.mjs",
     "voice:sandbox": "node scripts/run-profile.mjs sandbox voice pnpm exec tsx src/index.ts",
     "build:production": "node scripts/run-profile.mjs production api pnpm build && node scripts/run-profile.mjs production web pnpm build",
     "services:smoke": "node scripts/services-smoke.mjs",

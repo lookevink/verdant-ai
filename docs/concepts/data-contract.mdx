@@ -7,15 +7,15 @@ description: "The scientific guarantees behind each request and response."
 
 | Field | Meaning |
 | --- | --- |
-| `variables` | Physical quantities requested. The direct-query adapter currently admits only `air_temperature_max`. |
+| `variables` | One physical quantity: `air_temperature_max`, `air_temperature_min`, or `precipitation_amount` (daily total). |
 | `region.bbox` | `[west, south, east, north]`, longitude then latitude, EPSG:4326. No antimeridian crossing. |
 | `period` | Inclusive source-calendar dates in `YYYY-MM-DD`; dates are not silently converted to UTC instants. |
 | `temporal_resolution` | Source time support; currently `daily`. |
 | `spatial_resolution` | Currently `native`. No resampling or resolution upgrade is implied. |
-| `units` | Canonical units per variable; currently `degC`. No implicit conversion from other units. |
-| `data_class` | Evidence meaning. SILO raster values are `interpolated_observation`, not direct station or farm measurements. |
+| `units` | Exactly the requested variable with its canonical unit: `degC` for temperature, `mm` for precipitation. No implicit conversion. |
+| `data_class` | Evidence meaning. Gridded values are `interpolated_observation`, not direct station or farm measurements. |
 | `missing_policy` | `preserve`; no filling, interpolation, or missing-to-zero conversion. |
-| `source_preference` | Currently `silo`; clients cannot submit arbitrary URLs. |
+| `source_preference` | `auto` (default: the finest source covering the bounds), `silo`, `nclimgrid`, or `cpc`. Clients cannot submit arbitrary URLs. |
 | `dataset_version` | Optional immutable version pin, returned by coverage resolution. |
 | `format` | Representation: `json` by default, or `csv`. Independent of scientific meaning. |
 
@@ -31,7 +31,7 @@ Raster arrays use top-down row-major indexing: `cells[row * width + col]`. For a
 
 ## Version and evidence
 
-Published dataset contents are immutable. Corrections require a new version. Unpinned resolution chooses the newest compatible published demo version, with a stable ID tie-breaker; pin the returned version for repeatability.
+Published dataset contents are immutable. Corrections require a new version. Unpinned resolution prefers the source `auto` would acquire from, then the finest grid, then the newest compatible published version, with a stable ID tie-breaker; pin the returned version for repeatability.
 
 Every JSON query manifest carries:
 

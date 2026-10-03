@@ -1,25 +1,40 @@
 ---
 title: "Request and acquisition lifecycle"
-description: "How a request for data that is not yet published becomes a validated dataset version."
+description: "How a request for data that is not published yet becomes a validated dataset version."
 ---
 
-`POST /api/v1/data/requests` takes the same body as `/api/v1/data/query`. It first checks published coverage. A cache hit returns `200` with the immutable `datasetVersion` to query. A miss that maps onto a supported source is queued for acquisition and returns `202` with a request ID. Nothing in this flow charges.
+`POST /api/v1/data/requests` (or the MCP tool `request_data`) takes the same body as `/api/v1/data/query`. Published coverage returns `200` with the immutable `datasetVersion` to query, free. Anything else is acquired from the source.
 
-<Note>
-Queueing an acquisition currently requires `Authorization: Bearer <token>` because each acquisition runs a model session. Without it, a miss returns `401 acquisition_unauthorized` and nothing is queued. Paid requests through MPP are planned to replace that gate.
-</Note>
+## Sources
+
+| Source | Coverage | Native grid | From | Typical lag |
+| --- | --- | --- | --- | --- |
+| `silo`: SILO (Queensland Government) | Australia | 0.05° | 1889 | 1 day |
+| `nclimgrid`: NOAA nClimGrid-Daily | Contiguous United States | 1/24° (about 4 km) | 1951 | 4 days |
+| `cpc`: NOAA CPC Global Unified | Global land | 0.5° | 1979 | 2 days |
+
+All three provide `air_temperature_max` and `air_temperature_min` in `degC` and `precipitation_amount` (daily total) in `mm`. With `source_preference: "auto"` (the default) the finest source whose coverage contains the bounds is used; name a source to pin it. Each source keeps its own definition of a day (SILO's 9 am-to-9 am, nClimGrid's day ending in the early morning, CPC's 6Z-to-6Z), and one dataset version never mixes sources.
+
+## Payment
+
+A new acquisition costs a fixed price, paid with the [Machine Payments Protocol](https://mpp.dev) through Stripe:
+
+- **HTTP:** the first call returns `402` with a `WWW-Authenticate: Payment` challenge. Pay it and retry with `Authorization: Payment …`; the `202` response carries a `Payment-Receipt` header.
+- **MCP:** `request_data` returns the challenge in `_meta["org.paymentauth/payment-required"]`. Retry with the credential in `_meta["org.paymentauth/credential"]`; the receipt comes back in `_meta["org.paymentauth/receipt"]`. MPP-aware clients, such as one wrapped with `mppx`'s `McpClient`, do this automatically.
+
+The payment is bound to that exact acquisition target. Retrying with the same credential returns the same request without a second charge. An identical request that is already being acquired is returned free, and so is published data. If a paid acquisition fails for good, the payment is refunded through Stripe and the refund appears in the request's events.
 
 ## Sequence
 
-1. **Resolve.** The request is checked against published demo data with the same rules as a direct query.
-2. **Plan.** A miss is mapped deterministically onto one SILO target: variable, dates, and the native 0.05° grid window that contains the bounds, snapped outward to 1° blocks so nearby requests reuse it. Requests outside SILO coverage (1889-01-01 to yesterday, UTC), over 31 days or 10,000 cells, with no cell centers, or pinned to a `dataset_version` are rejected here, before any work is queued.
-3. **Queue.** One database transaction records the acquisition and enqueues a pgmq message. Identical targets share one acquisition: a repeat while it is in flight, or within 15 minutes of a failure, returns the existing ID with `created: false`. The output format is not part of the target.
-4. **Acquire.** A worker claims the job under an expiring lease and runs a Pi agent with Claude Opus 5.5. The agent has exactly five tools (`inspect_source`, `fetch_source`, `normalize_source`, `validate_output`, `submit_manifest`) and no shell, file or web access. The tools only read the public SILO bucket, bound every download, and verify georeferencing.
-5. **Validate.** Deterministic checks cover the complete period, canonical source provenance, cell-for-cell reconciliation with the source bytes, dimensions, finite and plausible values, and the fixed SILO ocean mask as the only missing cells. Missing values stay `null`.
+1. **Resolve.** The request is checked against published data with the same rules as a direct query.
+2. **Plan.** A miss is mapped deterministically onto one source target: variable, dates, and the native grid window that contains the bounds, snapped outward to 1° blocks so nearby requests reuse it. Requests outside the source's coverage or dates, over 31 days or 10,000 cells, with no cell centers, or pinned to a `dataset_version` are rejected here, before any charge.
+3. **Pay and queue.** One database transaction records the verified payment and the acquisition and enqueues it, or joins an identical acquisition already running.
+4. **Acquire.** A worker claims the job under an expiring lease and runs a Pi agent with Claude Opus 5.5. The agent has exactly five tools (`inspect_source`, `fetch_source`, `normalize_source`, `validate_output`, `submit_manifest`) and no shell, file or web access. The tools only reach the configured source hosts, bound every download, and check each file's grid, coordinates, time axis and nodata encoding.
+5. **Validate.** Deterministic checks cover the complete period, canonical source provenance, cell-for-cell reconciliation with the stored source bytes, dimensions, and finite, plausible values. Missing values stay `null`.
 6. **Verify and publish.** The supervisor does not trust the agent's report. It re-runs every check, builds a content-addressed dataset version from the verified files, and, in one transaction, publishes the version and its tiles, marks the request `ready`, and acknowledges the queue message. An identical earlier version is reused rather than rewritten.
-7. **Serve.** POST the original body to `/api/v1/data/query`. Later compatible requests are cache hits.
+7. **Serve.** POST the original body to `/api/v1/data/query`. Later compatible requests are free cache hits.
 
-Poll `GET /api/v1/data/requests/{id}` (also the `Location` header) while `Retry-After` is present. It returns the state, attempts, sanitized tool and validation events, and `datasetVersion` once ready. Model reasoning is not exposed.
+Poll `GET /api/v1/data/requests/{id}` (the `Location` header), or the MCP tool `get_request`, while `Retry-After` is present. It returns the state, attempts, sanitized tool, validation and payment events, and `datasetVersion` once ready. Model reasoning is not exposed. Most acquisitions finish within a minute.
 
 ## States and retries
 
@@ -29,8 +44,4 @@ A failed attempt returns to `queued` and retries after 30 s, then 60 s; the thir
 
 ## Credentials
 
-The Pi process receives only the model credential. Database, payment and API secrets stay with the supervisor. A separate process is not a security sandbox, which is why the agent gets narrow tools rather than general execution.
-
-## Planned: quotes and payment
-
-Paid requests will add `POST /api/v1/data/quotes` (a free, fixed-price offer that freezes source, transform, format, price and expiry) and bind an idempotency key and verified MPP payment to the request. Payment state (`unpaid → verified`, with `reconciliation_required`, `refund_pending`, `refunded`) is tracked separately from processing state. A failed job is not proof of a refund, and an unknown settlement is reconciled before any new charge.
+The Pi process receives only the model credential. Database, payment and API secrets stay with the supervisor and the API. A separate process is not a security sandbox, which is why the agent gets narrow tools rather than general execution.

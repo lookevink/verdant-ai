@@ -10,16 +10,16 @@ const vars = (values: Record<string, string | number>) => values as CSSPropertie
 const manifesto = "Climate data arrives in every shape: grids, stations, spreadsheets, archives. Units drift. Resolutions clash. Calendars disagree. Your agent shouldn't have to untangle any of it. Verdant retrieves, normalizes and delivers exactly what was asked for, with its _evidence _intact.".split(" ");
 const fragments = ["°F", "kelvin", "EPSG:3577", ".nc", "−9999", "0.05°", "NaN → 0", ".tif", "mm/day", "UTC+10", ".xlsx", "monthly?"];
 const stages = ["Request", "Retrieve", "Normalize", "Validate", "Deliver"];
-const tape = "SILO · daily maximum air temperature · EPSG:4326 · degrees Celsius · native grid · missing values preserved · CSV · JSON · ";
+const tape = "SILO · NOAA nClimGrid · NOAA CPC · daily maximum and minimum temperature · precipitation · EPSG:4326 · native grid · missing values preserved · CSV · JSON · ";
 const steps = [
-  { title: "Request", live: true, text: "Name the variable, place, period, units and format. Meaning stays separate from serialization, so “temperature as CSV” is never ambiguous." },
-  { title: "Retrieve", live: true, text: "Query compatible published data and check its actual coverage. Acquisition for uncached requests is still in development." },
+  { title: "Request", text: "Name the variable, place, period, units and format. Meaning stays separate from serialization, so “temperature as CSV” is never ambiguous." },
+  { title: "Retrieve", text: "Published data returns instantly. Anything not yet published is fetched from the source on request by an agent with narrow, audited tools, paid per acquisition through MPP." },
   { title: "Normalize", text: "Units, calendars, spatial support and missing values are reconciled and documented, never quietly relabeled or filled." },
-  { title: "Validate", text: "Deterministic checks confirm variables, dimensions, units and coverage before anything is published." },
-  { title: "Deliver", live: true, text: "Receive JSON values with provenance directly, or request CSV in the response. Pin the dataset version for reproducible queries." },
+  { title: "Validate", text: "Deterministic checks reconcile every cell with the source bytes and confirm dimensions, units and coverage before anything is published." },
+  { title: "Deliver", text: "Receive JSON values with provenance directly, or request CSV in the response. Pin the dataset version for reproducible queries." },
 ];
 const facets = [
-  ["Source", "SILO"], ["Variable", "Daily maximum air temperature"], ["Units", "Degrees Celsius"], ["Resolution", "Native grid · daily"],
+  ["Sources", "SILO · NOAA nClimGrid · NOAA CPC"], ["Variables", "Max & min temperature · precipitation"], ["Units", "°C · mm"], ["Resolution", "Native grid · daily"],
   ["Coordinates", "WGS84 · EPSG:4326"], ["Data class", "Interpolated observation"], ["Missing data", "Preserved"], ["Formats", "CSV · JSON"],
 ];
 const nevers = ["Missing values → zero", "Coarse pixel → fine measurement", "Undocumented interpolation"];
@@ -116,11 +116,11 @@ export default function Page() {
         <div className="washes" aria-hidden="true"><i className="wash dawn" /><i className="wash golden" /><i className="wash dusk" /><Stars /><i className="moon" /><i className="rays" /></div>
         <div className="sun" aria-hidden="true" />
         <div className="hero-copy">
-          <p className="chip"><span className="pulse" />Developer preview · Climate data, ready to use</p>
+          <p className="chip"><span className="pulse" />Live · Climate data, ready to use</p>
           <h1><span className="line"><Words text="Your agent has a question." /></span>
             <span className="line serif"><Words text="Give it" from={5} />{" "}<span className="underlined"><Words text="better data." from={7} /><svg className="swash" viewBox="0 0 400 24" preserveAspectRatio="none" aria-hidden="true"><path d="M4 18C80 6 170 4 250 9s110 6 146 1" /></svg></span></span></h1>
           <div className="hero-row">
-            <p className="lede">Specify the place, period and format. Verdant is being built to retrieve, normalize and deliver climate data with its evidence intact.</p>
+            <p className="lede">Specify the place, period and format. Verdant retrieves, normalizes and delivers climate data with its evidence intact.</p>
             <div className="actions"><a className="button" href="#request">Query real data <Arrow /></a><a className="button ghost" href={docs}>Read the docs <span aria-hidden="true">↗</span></a></div>
           </div>
         </div>
@@ -168,7 +168,7 @@ export default function Page() {
             <span className="step-n">0{i + 1}</span>
             <h3>{step.title}</h3>
             <p>{step.text}</p>
-            <span className={step.live ? "status live" : "status"}><i />{step.live ? "Live in preview" : "In development"}</span>
+            <span className="status live"><i />Live</span>
           </li>)}
         </ol>
       </section>
@@ -181,7 +181,7 @@ export default function Page() {
             <p>Every delivery carries the meaning of its numbers: where they came from, what they measure and what was done to them. Your agent can cite it and check it.</p>
             <ul className="nevers">{nevers.map((never, i) => <li key={never} style={vars({ "--i": i })}>Never <s>{never}</s></li>)}</ul>
           </div>
-          <p className="facets-label">The first supported request</p>
+          <p className="facets-label">Supported requests</p>
           <dl className="facets">{facets.map(([label, value], i) => <div key={label} style={vars({ "--i": i })}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
         </div>
       </section>
@@ -193,7 +193,7 @@ export default function Page() {
         <div className="workspace">
           <div className="context">
             <RegionMap />
-            <p>Query daily maximum temperature around Mildura, Australia, for 1 January 2003. Read the values directly with their source and version.</p>
+            <p>Query daily maximum temperature around Mildura, Australia. Published dates return instantly with their source and version; Australia, the US and global land can be requested for any covered date.</p>
             <dl><dt>Source</dt><dd>SILO</dd><dt>Units</dt><dd>Degrees Celsius</dd><dt>Resolution</dt><dd>Native grid · daily</dd><dt>Missing data</dt><dd>Preserved</dd></dl>
           </div>
           <RequestForm exampleRequest={exampleRequest} />
@@ -203,7 +203,7 @@ export default function Page() {
       <section className="build" id="docs">
         <div className="section-head">
           <div><p className="eyebrow"><b>05</b>Build with Verdant</p><h2>Read the docs. <em>Ship the query.</em></h2></div>
-          <p>Public demo reads are free and need no API key. Start over HTTP, or hand your agent the MCP server and let it discover what exists.</p>
+          <p>Reading published data is free and needs no API key. New data is acquired on request and paid per acquisition with MPP. Start over HTTP, or hand your agent the MCP server.</p>
         </div>
         <ul className="guides">
           {guides.map((guide, i) => <li key={guide.title} style={vars({ "--i": i })}><a href={guide.href}>
@@ -221,7 +221,7 @@ export default function Page() {
       <GrassEdge className="edge-soil" />
       <div className="footer-row">
         <p>{stages.join(" → ")}</p>
-        <p>Live demo data · acquisition and purchases in development</p>
+        <p>Published data free · new acquisitions paid per request via MPP</p>
         <nav className="footer-links" aria-label="Footer"><a href={docs}>Docs</a><a href={`${docs}/llms.txt`}>llms.txt</a><a href="/api/v1/openapi.json">OpenAPI</a><a href="#top">Back to top ↑</a></nav>
       </div>
       <p className="wordmark" aria-hidden="true">{[..."verdant"].map((letter, i) => <span key={i} style={vars({ "--i": i })}>{letter}</span>)}</p>

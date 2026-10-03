@@ -9,13 +9,14 @@ export const toolInputs = {
   // The MCP SDK publishes tool schemas as JSON Schema draft-07, where a tuple becomes `items: [...]`: invalid draft
   // 2020-12, which model APIs require of tool schemas. The bbox is therefore a plain four-number array here; handlers
   // still validate every request with dataRequestSchema.
-  query: dataRequestSchema.extend({
+  query: z.object({ ...dataRequestSchema.shape,
     region: z.object({ bbox: z.array(z.number().min(-180).max(180)).length(4).describe("[west, south, east, north] in degrees"),
       crs: z.literal("EPSG:4326") }).strict(),
     format: z.literal("json").default("json"),
-  }),
+  }).strict(),
   page: z.object({ id: idSchema, limit: z.number().int().min(1).max(1000).default(100), after: z.string().max(256).optional() }).strict(),
   sample: z.object({ id: idSchema, tile: idSchema, row: z.number().int().min(0), col: z.number().int().min(0) }).strict(),
+  requestId: z.object({ id: z.uuid() }).strict(),
 };
 
 const schema = (value: z.ZodType, input = false) => {
@@ -32,22 +33,24 @@ const pagination = [
   { name: "limit", in: "query", description: "Maximum records in this page. Response size is also capped at 1 MB.", schema: { type: "integer", minimum: 1, maximum: 1000, default: 100 } },
   { name: "after", in: "query", description: "Opaque nextCursor from the preceding page. Omit for the first page; stop when nextCursor is null.", schema: { type: "string", maxLength: 256 } },
 ];
-const readErrors = { "400": error("Invalid query parameters."), "404": error("Unknown, unpublished, or unavailable under public demo access."), "413": error("Response exceeds the 1 MB bound; narrow the query."), "503": error("Data service unavailable. Retry with exponential backoff.") };
+const readErrors = { "400": error("Invalid query parameters."), "404": error("Unknown, unpublished, or not publicly accessible."), "413": error("Response exceeds the 1 MB bound; narrow the query."), "503": error("Data service unavailable. Retry with exponential backoff.") };
 const writeErrors = { "400": error("Empty, malformed JSON, or unreadable body."), "413": error("Request or response exceeds bounds."), "415": error("Content-Type must be application/json."), "422": error("Invalid contract, incompatible coverage, or unsupported query."), "503": error("Data service unavailable.") };
 
 export const operationDescriptions = {
   getCapabilities: "Discover the implemented variables, sources, representations, limits and feature availability. This does not check current source coverage.",
-  listDatasets: "List published catalog metadata. Demo datasets can be read without payment; paid metadata does not grant data access. Restricted datasets are omitted.",
+  listDatasets: "List published catalog metadata. Published public datasets can be read without payment. Restricted datasets are omitted.",
   getDataset: "Inspect an immutable dataset version, including units, actual coverage, source hashes, license, attribution and spatial support.",
-  resolveData: "Check complete published demo coverage for a structured climate query. Returns the selected immutable version and row count, or an explicit unavailable reason; acquisitionEnabled reports whether POST /api/v1/data/requests can acquire a miss. Does not acquire data or charge.",
-  queryData: "Return climate data directly in the response, with provenance. JSON includes a manifest and data array; CSV returns rows with version, digest and metadata-link headers. Only published public demo data is admitted. No charging, acquisition or missing-to-zero conversion.",
+  resolveData: "Check complete published coverage for a structured climate query. Returns the selected immutable version and row count, or an explicit unavailable reason; acquisitionEnabled reports whether POST /api/v1/data/requests can acquire a miss. Does not acquire data or charge.",
+  queryData: "Return climate data directly in the response, with provenance. JSON includes a manifest and data array; CSV returns rows with version, digest and metadata-link headers. Only published public data is admitted. No charging, acquisition or missing-to-zero conversion.",
+  requestData: "Get data that may not be published yet. Published coverage returns ready (free). An identical acquisition already running returns its request (free). Otherwise the request is acquired from the source for a fixed MPP price: the first call returns a payment challenge, and the paid retry returns a request ID and receipt. Poll the request until ready, then query. Requests outside source coverage are rejected before any charge.",
+  getDataRequest: "Acquisition state (queued → acquiring → normalizing → validating → publishing → ready, or failed), attempts, sanitized tool and validation events, payments, and the published datasetVersion once ready. Failed paid acquisitions are refunded. Polling never charges.",
 } as const;
 
 export const openapi = {
   openapi: "3.1.0",
   info: { title: "Verdant Climate Data API", version: API_VERSION,
-    description: "Versioned climate data with preserved meaning. Discover → inspect → resolve → query. Small published-data queries return values directly, with explicit units, spatial support, missingness and provenance. Public demo endpoints require no credentials. Missing coverage can be acquired asynchronously by authorized clients through /api/v1/data/requests; paid acquisition is not enabled. Consult capabilities before planning a workflow." },
-  servers: [{ url: "https://api.verdant-ai.com", description: "Production (public demo data; payment test mode)" }],
+    description: "Versioned climate data with preserved meaning. Discover → inspect → resolve → query. Small published-data queries return values directly, with explicit units, spatial support, missingness and provenance. Reading published data requires no credentials. Missing coverage is acquired from the source on request through /api/v1/data/requests, paid per acquisition with MPP. Consult capabilities before planning a workflow." },
+  servers: [{ url: "https://api.verdant-ai.com", description: "Production" }],
   security: [],
   tags: [{ name: "Discovery" }, { name: "Queries" }, { name: "Observations" }, { name: "Raster" }, { name: "Service" }],
   paths: {
@@ -74,30 +77,33 @@ export const openapi = {
         }, content: { "application/json": { schema: ref("QueryResult") }, "text/csv": { schema: { type: "string" },
           example: "date,longitude,latitude,variable,value,unit,tile,row,col\r\n\"2003-01-01\",\"142.35\",\"-34.4\",\"air_temperature_max\",\"30.5\",\"degC\",\"mildura\",\"48\",\"47\"\r\n" } } }, ...writeErrors } } },
     "/api/v1/datasets/{id}/observations": { get: { operationId: "listObservations", tags: ["Observations"], summary: "Read observations", parameters: [id, ...pagination],
-      description: "Read public demo observations in stable ID order. Native dates and season labels remain distinct; a missing value is null, not zero. Follow nextCursor until null.",
+      description: "Read public observations in stable ID order. Native dates and season labels remain distinct; a missing value is null, not zero. Follow nextCursor until null.",
       responses: { "200": json("ObservationPage", "One observation page."), ...readErrors } } },
     "/api/v1/layers/{id}": { get: { operationId: "getRasterLayer", tags: ["Raster"], summary: "Read a raster index or tile", parameters: [id, ...pagination,
       { name: "tile", in: "query", description: "Omit to list tile metadata. Supply an ID from that list to fetch its bounded row-major cells.", schema: { type: "string", maxLength: 128 } }],
-      description: "Only public demo data. Cells are top-down row-major: cells[row * width + col]. NULL is preserved. Affine [a,b,c,d,e,f] maps pixel centers to x=a*(col+.5)+b*(row+.5)+c and y=d*(col+.5)+e*(row+.5)+f.",
+      description: "Only public data. Cells are top-down row-major: cells[row * width + col]. NULL is preserved. Affine [a,b,c,d,e,f] maps pixel centers to x=a*(col+.5)+b*(row+.5)+c and y=d*(col+.5)+e*(row+.5)+f.",
       responses: { "200": { description: "Paginated index without tile; complete bounded tile when tile is supplied.", content: { "application/json": { schema: { oneOf: [ref("TilePage"), ref("TileDetail")] } } } }, ...readErrors } } },
     "/api/v1/layers/{id}/sample": { get: { operationId: "sampleRaster", tags: ["Raster"], summary: "Read one raster cell", parameters: [id,
       { name: "tile", in: "query", required: true, schema: { type: "string" }, description: "Tile ID from the layer index." },
       ...["row", "col"].map(name => ({ name, in: "query", required: true, schema: { type: "integer", minimum: 0 }, description: "Zero-based index within this tile." }))],
       description: "Return one native cell and its spatial metadata. A null value means missing, and its unit and evidence class do not change.",
       responses: { "200": json("PixelSample", "One native raster cell."), ...readErrors } } },
-    "/api/v1/data/requests": { post: { operationId: "requestData", tags: ["Queries"], summary: "Request data, acquiring a cache miss",
-      description: "Resolve the request against published data. A cache hit returns 200 with the immutable version to query. A miss that maps onto a supported SILO target is queued for acquisition (202) and needs a bearer token; identical in-flight or recently failed targets are reused rather than re-queued. Poll the Location URL, then POST the same body to /api/v1/data/query once ready. Never charges.",
-      security: [{ bearerToken: [] }], requestBody: { ...body, description: "The same request body as /api/v1/data/query. Format does not change what is acquired." },
-      responses: { "200": json("DataRequestReady", "Cache hit: published coverage already satisfies the request."),
-        "202": { description: "Cache miss accepted (or an identical acquisition reused). Poll the Location URL.",
-          headers: { Location: { description: "Status URL for this acquisition.", schema: { type: "string" } }, "Retry-After": { description: "Suggested polling delay in seconds.", schema: { type: "integer" } } },
+    "/api/v1/data/requests": { post: { operationId: "requestData", tags: ["Queries"], summary: "Request data, acquiring a cache miss", description: operationDescriptions.requestData +
+      " Over HTTP the challenge is a 402 with WWW-Authenticate: Payment (Stripe shared payment token); retry with Authorization: Payment and keep the same credential for any retry. Then POST the same body to /api/v1/data/query once ready.",
+      security: [{}, { mppPayment: [] }, { bearerToken: [] }], requestBody: { ...body, description: "The same request body as /api/v1/data/query. Format does not change what is acquired." },
+      responses: { "200": json("DataRequestReady", "Cache hit: published coverage already satisfies the request (free)."),
+        "202": { description: "Acquisition queued after payment, or an identical running acquisition (free). Poll the Location URL.",
+          headers: { Location: { description: "Status URL for this acquisition.", schema: { type: "string" } }, "Retry-After": { description: "Suggested polling delay in seconds.", schema: { type: "integer" } },
+            "Payment-Receipt": { description: "MPP receipt when this call paid (or recovered a payment).", schema: { type: "string" } } },
           content: { "application/json": { schema: ref("DataRequestStatus") } } },
-        "401": error("acquisition_unauthorized: the request is a miss and acquisition needs a bearer token."),
+        "402": { description: "Payment required for a new acquisition. application/problem+json with the challenge in WWW-Authenticate.",
+          headers: { "WWW-Authenticate": { description: "MPP Payment challenge (method stripe, intent charge).", schema: { type: "string" } } } },
+        "502": error("payment_or_fulfillment_failed: retry with the same credential to recover without a second charge."),
         "413": error("request_too_large: more than 31 days, 10,000 cells, or 256 cells per side."),
         "422": error("Invalid contract, or an acquisition rejection: outside_source_coverage, no_cell_centers, dataset_version_pinned."),
         "400": writeErrors["400"], "415": writeErrors["415"], "503": writeErrors["503"] } } },
     "/api/v1/data/requests/{id}": { get: { operationId: "getDataRequest", tags: ["Queries"], summary: "Poll an acquisition",
-      description: "Processing state (queued → acquiring → normalizing → validating → publishing → ready, or failed), attempts, sanitized tool and validation events, and the published datasetVersion once ready. Failed acquisitions include error.reason. Polling never charges.",
+      description: operationDescriptions.getDataRequest,
       parameters: [{ name: "id", in: "path", required: true, description: "Request ID from POST /api/v1/data/requests.", schema: { type: "string", format: "uuid" } }],
       responses: { "200": { description: "Current acquisition state.", headers: { "Retry-After": { description: "Present while processing.", schema: { type: "integer" } } },
         content: { "application/json": { schema: ref("DataRequestStatus") } } }, "404": error("request_not_found"), "503": readErrors["503"] } } },
@@ -125,10 +131,14 @@ export const openapi = {
         temporalResolutions: z.array(z.string()), spatialResolutions: z.array(z.string()), units: z.record(z.string(), z.array(z.string())),
         formats: z.array(z.string()), defaultFormat: z.string(), delivery: z.string(), missingPolicy: z.string(), access: z.string(),
         limits: z.record(z.string(), z.number()), spatialSelection: z.string() }),
-      acquisition: z.object({ endpoint: z.string(), access: z.string(), sources: z.array(z.string()), variables: z.array(z.string()),
-        firstDate: z.string(), latestDate: z.string(), maxDays: z.number(), states: z.array(z.string()), description: z.string() }),
+      acquisition: z.object({ endpoint: z.string(), mcpTool: z.string(), access: z.string(), payment: z.string(),
+        sources: z.array(z.object({ id: z.string(), name: z.string(), coverage: z.string(), resolutionDegrees: z.number(), firstDate: z.string(), latencyDays: z.number() })),
+        variables: z.array(z.string()), maxDays: z.number(), states: z.array(z.string()), description: z.string() }),
       links: z.record(z.string(), z.url()) })),
   },
-  securitySchemes: { bearerToken: { type: "http", scheme: "bearer", description: "Required only to queue acquisitions for cache misses." } },
+  securitySchemes: {
+    mppPayment: { type: "http", scheme: "payment", description: "Machine Payments Protocol credential for a new acquisition, issued in response to a 402 challenge." },
+    bearerToken: { type: "http", scheme: "bearer", description: "Operator token: queues acquisitions without payment." },
+  },
   },
 } as const;
