@@ -26,7 +26,7 @@ const api = path.join(root, "apps/api/app/api/v1");
 const requests = await import(path.join(api, "data/requests/route.ts"));
 const status = await import(path.join(api, "data/requests/[id]/route.ts"));
 const query = await import(path.join(api, "data/query/route.ts"));
-const { decodeWindow, download } = await import(path.join(root, "apps/worker/src/acquisition/silo.ts"));
+const { decodeWindow, silo } = await import(path.join(root, "apps/worker/src/acquisition/sources/silo.ts"));
 
 // Remote runs pick a random two-day period (1990–2019) so each run is a genuine cache miss.
 const start = remote ? new Date(Date.UTC(1990, 0, 1) + Math.floor(Math.random() * 10_950) * 86_400_000).toISOString().slice(0, 10) : "2003-01-02";
@@ -41,10 +41,10 @@ const checks: string[] = [];
 const pass = (name: string) => { checks.push(name); console.log(`✔ ${name}`); };
 
 try {
-  const unauthorized = await post(requests.POST);
-  assert.equal(unauthorized.status, 401);
-  assert.equal((await unauthorized.json()).cache, "miss");
-  pass("cache miss without a token is refused before queueing");
+  // Without payment (402 when Stripe is configured, 503 in this harness) or the operator token, nothing is queued.
+  const unpaid = await post(requests.POST);
+  assert.ok([402, 503].includes(unpaid.status), String(unpaid.status));
+  pass(`cache miss without payment or token is refused before queueing (${unpaid.status})`);
   const accepted = await post(requests.POST, adminToken);
   assert.equal(accepted.status, 202);
   const first = await accepted.json();
@@ -93,8 +93,8 @@ try {
   assert.equal(result.data.length, 8);
   // Independent check: decode the source window for each date here and compare every returned value.
   for (const date of [start, end]) {
-    const source = await download("max_temp", date);
-    const { cells } = await decodeWindow(source.body, { ...record.target, period: { start: date, end: date } });
+    const dayTarget = { ...record.target, period: { start: date, end: date } };
+    const { cells } = await decodeWindow((await silo.download(silo.objects(dayTarget)[0]!)).body, dayTarget);
     for (const row of result.data.filter((r: { date: string }) => r.date === date)) {
       const col = Math.round((row.longitude - 0.025 - 111.975) / 0.05) - record.target.window.col;
       const r = Math.round((-9.975 - row.latitude - 0.025) / 0.05) - record.target.window.row;

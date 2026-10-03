@@ -23,6 +23,7 @@
     "acquisition:e2e": "node --import tsx scripts/acquisition-e2e.ts",
     "worker:sandbox": "node scripts/run-profile.mjs sandbox worker pnpm exec tsx src/index.ts --run",
     "worker:production": "node scripts/run-profile.mjs production worker pnpm exec tsx src/index.ts --run",
+    "worker:service": "node scripts/worker-service.mjs",
     "build:production": "node scripts/run-profile.mjs production api pnpm build && node scripts/run-profile.mjs production web pnpm build",
     "services:smoke": "node scripts/services-smoke.mjs",
     "vercel:sync": "node scripts/vercel-sync.mjs",

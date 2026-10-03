@@ -32,6 +32,17 @@ async function checkPi() {
 function log(event:string,details:Record<string,unknown>={}) {
   console.log(JSON.stringify({event,...details,timestamp:new Date().toISOString()}));
 }
+/** Payments for failed acquisitions are refunded by the API, which alone holds payment credentials. */
+async function sweepRefunds() {
+  const api=process.env.VERDANT_API_URL, token=process.env.VERDANT_WORKER_TOKEN;
+  if(!api||!token) return;
+  try {
+    const response=await fetch(new URL("/api/internal/acquisitions/refunds",api),{method:"POST",
+      headers:{Authorization:`Bearer ${token}`},signal:AbortSignal.timeout(60_000)});
+    const body=await response.json().catch(()=>({})) as {processed?:number};
+    if(!response.ok||body.processed) log("refund_sweep",{status:response.status,...body});
+  } catch { log("refund_sweep_unavailable"); }
+}
 /** Run the Pi pipeline for one request without a database: plan, acquire, verify, write the publication locally. */
 async function acquireLocally(file: string) {
   const plan = planAcquisition(dataRequestSchema.parse(JSON.parse(await readFile(file, "utf8"))));
@@ -69,7 +80,9 @@ if (process.argv.includes("--validate")) {
   const probes=new JobQueue(rpc,namespace,"probe"), acquisitions=new JobQueue(rpc,namespace,"acquisition");
   log("worker_started",{namespace,capabilities:capabilities(),model:piConfigured()?modelSpec().label:null,dataDir});
   if(!piConfigured()) log("acquisition_disabled",{reason:"ANTHROPIC_API_KEY is not configured"});
+  let nextSweep=0;
   do {
+    if(Date.now()>=nextSweep) { await sweepRefunds(); nextSweep=Date.now()+300_000; }
     let worked=false;
     try {
       const claimed=await probes.claim();
@@ -93,6 +106,7 @@ if (process.argv.includes("--validate")) {
           log("job_claimed",{lane:"acquisition",id:job.job.id,attempt:job.job.attempts});
           const result=await processAcquisition(job,{rpc,queue:acquisitions,namespace,dataDir,log});
           log("job_finished",{lane:"acquisition",id:job.job.id,...result});
+          if(result.status!=="ready") nextSweep=0;
           if(once&&result.status!=="ready") process.exitCode=1;
         }
       }

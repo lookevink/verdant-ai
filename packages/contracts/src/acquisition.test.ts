@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { exampleRequest, type DataRequest } from "./index.js";
-import { coverageDigest, planAcquisition, siloGrid, windowBbox } from "./acquisition.js";
+import { dataRequestSchema, exampleRequest, type DataRequest } from "./index.js";
+import { coverageDigest, planAcquisition, preferredSource, siloGrid, sourceSpecs, windowBbox } from "./acquisition.js";
 
 const now = new Date("2026-10-03T12:00:00Z");
 const request: DataRequest = { ...exampleRequest, period: { start: "2003-01-02", end: "2003-01-04" }, format: "json" };
@@ -27,7 +27,7 @@ test("rejects requests acquisition cannot satisfy before any work is queued", ()
   const reason = (input: DataRequest) => { const p = planAcquisition(input, now); return p.ok ? "ok" : p.reason; };
   assert.equal(reason({ ...request, period: { start: "2026-10-02", end: "2026-10-03" } }), "outside_source_coverage");
   assert.equal(reason({ ...request, period: { start: "1888-12-31", end: "1889-01-01" } }), "outside_source_coverage");
-  assert.equal(reason({ ...request, region: { ...request.region, bbox: [110, -34, 112.5, -33] } }), "outside_source_coverage");
+  assert.equal(reason({ ...request, source_preference: "silo", region: { ...request.region, bbox: [110, -34, 112.5, -33] } }), "outside_source_coverage");
   assert.equal(reason({ ...request, period: { start: "2003-01-01", end: "2003-02-01" } }), "request_too_large");
   assert.equal(reason({ ...request, region: { ...request.region, bbox: [130, -30, 136, -24] } }), "request_too_large");
   assert.equal(reason({ ...request, region: { ...request.region, bbox: [142.31, -34.41, 142.32, -34.40] } }), "no_cell_centers");
@@ -36,7 +36,7 @@ test("rejects requests acquisition cannot satisfy before any work is queued", ()
 test("acquired windows always contain the request and stay within tile limits", () => {
   let seed = 7;
   const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-  const extent = windowBbox({ col: 0, row: 0, width: siloGrid.width, height: siloGrid.height });
+  const extent = windowBbox({ col: 0, row: 0, width: siloGrid.width, height: siloGrid.height }, siloGrid);
   let accepted = 0;
   for (let i = 0; i < 2000; i++) {
     const w = Math.round((extent[0] + random() * 41) * 1e6) / 1e6, s = Math.round((extent[1] + random() * 33) * 1e6) / 1e6;
@@ -49,4 +49,37 @@ test("acquired windows always contain the request and stay within tile limits", 
     assert.ok(plan.target.window.col + plan.target.window.width <= siloGrid.width && plan.target.window.row + plan.target.window.height <= siloGrid.height);
   }
   assert.ok(accepted > 1000);
+});
+test("auto selection uses the finest source covering the bounds, and pinned sources stay pinned", () => {
+  const at = (bbox: [number, number, number, number], extra: Partial<DataRequest> = {}) =>
+    ({ ...request, source_preference: "auto" as const, region: { bbox, crs: "EPSG:4326" as const }, ...extra });
+  assert.equal(preferredSource(at([142.3, -34.45, 142.4, -34.35])), "silo");
+  assert.equal(preferredSource(at([-98.1, 38.4, -98, 38.5])), "nclimgrid");
+  assert.equal(preferredSource(at([10, 45, 11, 46])), "cpc");
+  assert.equal(preferredSource(at([-125, 48, -123, 50])), "cpc"); // crosses the nClimGrid edge
+  const us = planAcquisition(at([-98.1, 38.4, -98, 38.5]), now);
+  assert.ok(us.ok);
+  // 1/24° grid, snapped to the enclosing 1° block: 24 × 24 native cells.
+  assert.deepEqual([us.target.source, us.target.sourceVariable, us.target.window.width, us.target.window.height], ["nclimgrid", "tmax", 24, 24]);
+  assert.equal(us.target.transformVersion, sourceSpecs.nclimgrid.transformVersion);
+  const rain = planAcquisition(at([-98.1, 38.4, -98, 38.5], { variables: ["precipitation_amount"], units: { precipitation_amount: "mm" } }), now);
+  assert.ok(rain.ok);
+  assert.equal(rain.target.sourceVariable, "prcp");
+  assert.notEqual(rain.coverageDigest, us.coverageDigest);
+  // nClimGrid lags about four days; CPC about two.
+  const recent = planAcquisition(at([-98.1, 38.4, -98, 38.5], { period: { start: "2026-10-01", end: "2026-10-01" } }), now);
+  assert.equal(recent.ok ? "ok" : recent.reason, "outside_source_coverage");
+  // A 0.1° box holds no 0.5° CPC cell centre; a 1° box holds four.
+  assert.equal((p => p.ok ? "ok" : p.reason)(planAcquisition(at([142.3, -34.45, 142.4, -34.35], { source_preference: "cpc" }), now)), "no_cell_centers");
+  const pinned = planAcquisition(at([142, -35, 143, -34], { source_preference: "cpc" }), now);
+  assert.ok(pinned.ok);
+  assert.equal(pinned.target.source, "cpc");
+  // Existing SILO maximum-temperature targets keep their digests (and so their deduplication).
+  const silo = planAcquisition(request, now);
+  assert.equal(silo.ok && silo.target.transformVersion, "verdant-silo-daily-geotiff-v1");
+});
+test("units must match the requested variable", () => {
+  assert.equal(dataRequestSchema.safeParse({ ...request, units: { air_temperature_min: "degC" } }).success, false);
+  assert.equal(dataRequestSchema.safeParse({ ...request, variables: ["precipitation_amount"], units: { precipitation_amount: "mm" } }).success, true);
+  assert.equal(dataRequestSchema.safeParse({ ...exampleRequest, source_preference: undefined }).data?.source_preference, "auto");
 });

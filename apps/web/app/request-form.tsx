@@ -32,7 +32,7 @@ export function RequestForm({ exampleRequest }: { exampleRequest: DataRequest })
       <span>{pending ? "Reading data…" : "Query data"}</span><svg className="arrow" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 10h13M11 4.5 16.5 10 11 15.5" /></svg>
     </button>
     <button className="button ghost" type="button" disabled={pending} onClick={() => void runRequest("validate")}>Validate structure only</button>
-    <p className="hint">Returns published data directly. Available date: 1 January 2003. Free demo; no purchase or acquisition.</p>
+    <p className="hint">Returns published data directly with its source and version. Dates that are not published yet can be requested through the API or MCP.</p>
     <div aria-live="polite">{result && <div className="output" key={result.run} data-ok={ok}>
       <p className="output-status"><i />{ok ? result.action === "query" ? "Data returned with provenance" : "Valid request structure · coverage not checked" : result.status ? `Request could not be completed · HTTP ${result.status}` : "API offline"}</p>
       <pre>{result.text.split("\n").map((line, i) => <span key={i} style={{ "--i": Math.min(i, 24) } as React.CSSProperties}>{line}{"\n"}</span>)}</pre>

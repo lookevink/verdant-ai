@@ -10,10 +10,10 @@ The API at `https://api.verdant-ai.com` exposes a generated OpenAPI 3.1 contract
 - `GET /api/v1/datasets` and `GET /api/v1/datasets/{id}`: published catalog, coverage and provenance.
 - `POST /api/v1/data/resolve`: check complete compatible published coverage without purchasing or acquiring anything.
 - `POST /api/v1/data/query`: return data **directly in the response**, defaulting to JSON `{manifest,data}`. CSV is an alternate response representation, with provenance links and digest headers. A download is optional client behavior, not a required delivery step.
-- `POST /api/v1/data/requests`: cache hit → `200` with the version to query. Cache miss → a bounded SILO acquisition is queued (`202`, bearer token required) and `GET /api/v1/data/requests/{id}` reports progress until the new version is `ready`.
-- `/mcp`: eight read-only data tools using the same query implementation; discovery at `/.well-known/mcp`.
+- `POST /api/v1/data/requests`: cache hit → `200` with the version to query (free). Cache miss → `402` MPP challenge; once paid, the acquisition is queued (`202` + `Payment-Receipt`) and `GET /api/v1/data/requests/{id}` reports progress until the new version is `ready`. An identical running acquisition is joined for free; the operator bearer token queues without payment.
+- `/mcp`: ten data tools using the same implementation, including `request_data` (MPP-paid via `_meta`) and `get_request`; discovery at `/.well-known/mcp`.
 
-Direct queries currently support SILO daily maximum temperature in Celsius on a native EPSG:4326 grid. The imported demo covers 1 January 2003 near Mildura; any other date from 1889 to yesterday and any region on the SILO grid can be acquired on request. Queries are bounded to 31 days, 10,000 cells and 1 MB, require complete coverage, and support an immutable `dataset_version` pin. Study observations and native raster endpoints remain available separately. No endpoint converts a cache miss into a paid acquisition; queueing one requires the API bearer token until MPP-paid requests exist.
+Queries cover daily maximum/minimum temperature (°C) and precipitation (mm) on native EPSG:4326 grids from three sources: SILO (Australia, 0.05°, 1889–), NOAA nClimGrid-Daily (contiguous US, 1/24°, 1951–) and NOAA CPC Global Unified (global land, 0.5°, 1979–). `source_preference: auto` picks the finest source covering the bounds. Anything not yet published is acquired on request. Queries are bounded to 31 days, 10,000 cells and 1 MB, require complete coverage, and support an immutable `dataset_version` pin. Study observations and native raster endpoints remain available separately. A direct query never starts an acquisition or a payment.
 
 Mintlify lives in the monorepo's `docs/` directory with `docs.json`, guides and generated OpenAPI. Configure the existing Mintlify site's repository as `lookevink/verdant-ai`, branch `main`, path `/docs`; see [deployment setup](docs/README.md). Hosted Mintlify deployment still requires connection to the user's existing workspace. Its built-in search MCP covers documentation; the API's own MCP supplies live data tools.
 
@@ -33,12 +33,19 @@ The web server proxies `/api/*` to the API. External agents call the API directl
 
 ### Acquisition on a cache miss
 
-1. The API resolves the request against published data. A miss is planned onto one SILO target (dates + native grid window snapped to 1° blocks) and, in one transaction, recorded and enqueued on the `acquisition` pgmq lane. Identical targets share one acquisition.
-2. The worker claims it under a 90 s lease (renewed every 20 s) and starts Pi with `PI_MODEL` (default `anthropic/claude-opus-5-5`). Pi calls `inspect_source → fetch_source → normalize_source → validate_output → submit_manifest`; those tools do all IO and transforms deterministically against the public SILO S3 bucket.
-3. The supervisor re-runs validation (period, provenance, cell-for-cell reconciliation with source bytes, dimensions, finite/plausible values, the fixed 290,758-cell ocean mask as the only nodata), builds a content-addressed dataset version, and publishes version + tiles + `ready` + queue acknowledgement atomically with a final lease check.
-4. Failures retry twice with backoff; unfixable source problems end the request immediately. Progress and sanitized tool events are visible at `GET /api/v1/data/requests/{id}`.
+1. The API resolves the request against published data. A miss is planned onto one source target (source, variable, dates, native grid window snapped to 1° blocks). After the MPP payment verifies, the payment and the acquisition are recorded and enqueued on the `acquisition` pgmq lane in one transaction. Identical targets share one acquisition; a retried credential recovers its request without a second charge.
+2. The worker claims it under a 90 s lease (renewed every 20 s) and starts Pi with `PI_MODEL` (default `anthropic/claude-opus-5-5`). Pi calls `inspect_source → fetch_source → normalize_source → validate_output → submit_manifest`; those tools do all IO and transforms deterministically through per-source adapters (`apps/worker/src/acquisition/sources/`): SILO GeoTIFFs on S3, nClimGrid-Daily monthly NetCDF4 on S3 (decoded with h5wasm, rows flipped, final file then preliminary), and CPC subsets over NOAA PSL OPeNDAP (time/lat/lon maps checked, split at 0°).
+3. The supervisor re-runs validation (complete source objects, canonical provenance, grid/coordinate/time/nodata checks, cell-for-cell reconciliation with source bytes, dimensions, finite/plausible values), builds a content-addressed dataset version, and publishes version + tiles + `ready` + queue acknowledgement atomically with a final lease check.
+4. Failures retry twice with backoff; unfixable source problems end the request immediately. Progress, sanitized tool events and payment events are visible at `GET /api/v1/data/requests/{id}`.
+5. Payments for acquisitions that end `failed` are refunded: the worker (which holds no payment credentials) calls `POST /api/internal/acquisitions/refunds` with its token after a failure and every 5 minutes; the API refunds through Stripe with idempotency keys and records the outcome.
 
-The published content depends only on the source bytes, so Pi and the scripted test agent produce the same dataset version for the same target. Job directories live under `.work/worker` (`WORKER_DATA_DIR`); source GeoTIFFs are deleted after publication, receipts and manifests are kept.
+Each source keeps its own day definition (SILO 9 am–9 am local, nClimGrid the 24 h ending in the early morning, CPC 06Z–06Z); a version never mixes sources.
+
+### Always-on worker on this machine
+
+`pnpm worker:service install` runs `worker:production` as a launchd agent (`com.verdant-ai.worker.production`): restarted on crash and at login, with `caffeinate -i` preventing idle sleep. `pnpm worker:service status` shows state and recent log lines (`~/Library/Logs/verdant-worker-production.log`); run `pnpm worker:service restart` after pulling new worker code, and `uninstall` to remove it.
+
+The published content depends only on the source bytes, so Pi and the scripted test agent produce the same dataset version for the same target. Job directories live under `.work/worker` (`WORKER_DATA_DIR`); source bytes are deleted after publication, receipts and manifests are kept.
 
 ## Environment profiles
 
@@ -103,7 +110,9 @@ For paired previews, deploy the API preview first, then set the web preview's `A
 
 ## MPP with Stripe
 
-MPP is the HTTP payment protocol; Stripe handles the payment. The sandbox endpoint is `GET /api/v1/payments/probe`, priced at **$0.50 in test funds**. It verifies a Stripe SPT and queues a diagnostic job. It does not sell climate data. It returns 404 in live mode and 503 until credentials and a sandbox business profile are present.
+MPP is the HTTP payment protocol; Stripe handles the payment. New acquisitions are charged `MPP_PRICE_USD` (default $0.50) through `POST /api/v1/data/requests` and the MCP tool `request_data`, bound to the acquisition target via the challenge scope. Production currently runs with `PAYMENT_MODE=test` (Stripe test funds); switching to real payments needs a live Stripe account with MPP, a live key and `profile_` ID, and `PAYMENT_MODE=live` (which also moves the queue to `verdant:production:live`, so the worker must run the same profile). The diagnostic `GET /api/v1/payments/probe` ($0.50 in test funds) remains for sandbox checks and returns 404 in live mode.
+
+`node --import tsx apps/api/scripts/paid-request-e2e.mts` exercises the paid flow end to end with real Stripe test payments: 402 → paid 202 + receipt → credential replay without a second charge → free join → MCP challenge and paid tool call → worker publication → refund of a failed paid acquisition. It needs a Stripe test key that can mint shared payment tokens (the authorized sandbox CLI key, via `pnpm stripe:sync`).
 
 A dedicated Stripe sandbox, `acct_1UMWhEERBvLA6kcm`, is configured under CLI profile `verdant`. On 3 October 2026, its temporary claimable key was replaced with an authorized sandbox CLI key in both local test-mode environment profiles. The CLI key expires on **1 January 2027**.
 
@@ -111,7 +120,7 @@ The approved parent-account profile is **Verdant AI / `@verdant_ai`**, under `ac
 
 **Verified locally on 3 October 2026:** HTTP 402 challenge, malformed-credential rejection, actual $0.50 Stripe sandbox payment (`pi_3UMZl5ERBvLA6kcm0Bn5LYQV`, `livemode=false`), HTTP 202, durable probe enqueue, and successful worker completion using the production test namespace. The pinned validator reports 15 passing checks and one discovery failure: it expects an MPP discovery document at `/openapi.json`, while the current climate API contract is served at `/api/v1/openapi.json` without the probe discovery metadata. Payment-flow success does not mean the full validator passes.
 
-**Production deployment remains pending:** the Vercel CLI identity `kevin-sendblue` has the `DEVELOPER` role on `lookevinks-projects`; Vercel denies production environment-variable writes. An owner or a role with production environment access must apply the four payment settings and redeploy. The approved production upload was attempted but did not succeed; the public API still uses its prior configuration.
+**Production payment settings are live** (confirmed 3 October 2026): the public API answers unpaid requests with a `402` challenge for profile `profile_test_61VVxfHx9KMi5gkIBA6VVxfHM1SQgBts4PNNPcAh6DmC` in test mode.
 
 To refresh configuration, verify the CLI still targets the dedicated sandbox, then retrieve and distribute its `profile_test_` ID:
 
@@ -131,15 +140,15 @@ pnpm --filter @verdant/api exec mppx validate https://YOUR-API --endpoint GET:/a
 
 Verify `/api/health` reports `paymentMode: test` first. The validator exercises the payment endpoint; separately run the diagnostic worker and verify the returned job completes. Its discovery check still fails until the discovery route is implemented. No client-controlled switch can enable sandbox mode. The sandbox probe is disabled in live mode. Do not run the validator against live payment endpoints without an explicit spending budget: the validator can move real funds.
 
-Verified receipts and pgmq enqueueing commit together in Postgres; retrying the same credential recovers a saved receipt. There remains a crash window between Stripe settlement and saving the receipt. This test-only endpoint is **not** a production payment ledger or an exactly-once settlement guarantee. Durable reconciliation, quote binding, requester entitlements, refunds and a working acquisition handler are required before enabling paid data requests.
+Verified payments and pgmq enqueueing commit together in Postgres; retrying the same credential recovers the saved request and receipt. There remains a crash window between Stripe settlement and saving the receipt, which needs reconciliation against Stripe; it is not an exactly-once settlement guarantee.
 
 References: [Stripe MPP](https://docs.stripe.com/payments/machine/mpp), [Stripe sandboxes](https://docs.stripe.com/sandboxes).
 
 ## Current scope
 
-Implemented: the versioned read/query contract, generated OpenAPI, Mintlify monorepo documentation, direct JSON/CSV responses, read-only MCP, environment distribution, pgmq queue/leases/retries, authenticated diagnostic enqueue/status, worker polling for diagnostics and acquisitions, cache-miss acquisition with Pi, Stripe MPP sandbox probe code, and verification scripts. Live queue/Supabase checks work in both profiles, including API → queue → worker completion. Pi needs `ANTHROPIC_API_KEY` (plus `ANTHROPIC_WORKSPACE_ID` for an unscoped organization key); `PI_MODEL` defaults to `anthropic/claude-opus-5-5`. The Stripe sandbox payment roundtrip is verified locally; its public deployment requires the Vercel production environment update described above.
+Implemented: the versioned read/query contract, generated OpenAPI, Mintlify monorepo documentation, direct JSON/CSV responses, read-only MCP, environment distribution, pgmq queue/leases/retries, authenticated diagnostic enqueue/status, worker polling for diagnostics and acquisitions, MPP-paid cache-miss acquisition with Pi from SILO, NOAA nClimGrid-Daily and NOAA CPC, refunds for failed paid acquisitions, and verification scripts. Live queue/Supabase checks work in both profiles, including API → queue → worker completion. Pi needs `ANTHROPIC_API_KEY` (plus `ANTHROPIC_WORKSPACE_ID` for an unscoped organization key); `PI_MODEL` defaults to `anthropic/claude-opus-5-5`.
 
-Cache-miss acquisition is implemented for SILO daily maximum temperature: authorized `POST /api/v1/data/requests`, pgmq queueing, the Pi worker with Claude Opus 5.5, independent validation and atomic publication. Verified 3 October 2026 locally and against the hosted sandbox partition. Climate schemas, handoff import, catalog/observation/raster APIs and transactional publication RPCs are implemented; see [database setup and verification](supabase/README.md). Map rendering, backtests, quote lifecycle HTTP routes, MPP-paid requests, more variables/sources and paid data fulfillment are still pending.
+Climate schemas, handoff import, catalog/observation/raster APIs and transactional publication RPCs are implemented; see [database setup and verification](supabase/README.md). Not yet built: map rendering of acquired versions, separate quote routes (the MPP challenge carries the fixed price), additional representations (GeoTIFF/NetCDF/Parquet) and station (GHCN-Daily) data.
 
 ## Build specifications
 
