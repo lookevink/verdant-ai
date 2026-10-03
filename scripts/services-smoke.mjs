@@ -30,6 +30,10 @@ try {
  const result=await fetch(origin+'/api/internal/queue/probe?id='+id,{headers:auth});
  const body=await result.json();
  assert.equal(body.status,'completed');
- assert.equal((await fetch(origin+'/api/v1/data/requests',{method:'POST'})).status,503);
- console.log(JSON.stringify({profile,status:'passed',checks:['API authorization','API enqueue','worker pull','Supabase credential check','job completion','acquisition fails closed']}));
+ // An uncached request needs the bearer token before anything is queued (no model or source calls here).
+ const miss={variables:['air_temperature_max'],region:{bbox:[142.3,-34.45,142.4,-34.35],crs:'EPSG:4326'},period:{start:'1890-01-01',end:'1890-01-01'},
+  temporal_resolution:'daily',spatial_resolution:'native',units:{air_temperature_max:'degC'},data_class:'interpolated_observation',
+  missing_policy:'preserve',source_preference:'silo'};
+ assert.equal((await fetch(origin+'/api/v1/data/requests',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(miss)})).status,401);
+ console.log(JSON.stringify({profile,status:'passed',checks:['API authorization','API enqueue','worker pull','Supabase credential check','job completion','acquisition requires authorization']}));
 } finally {server.kill('SIGTERM');}

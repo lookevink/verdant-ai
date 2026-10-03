@@ -7,7 +7,9 @@
     "check": "tsx src/index.ts --check",
     "validate": "tsx src/index.ts --validate",
     "build": "tsc --noEmit",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test src/**/*.test.ts",
+    "acquire": "tsx src/index.ts --acquire"
   },
   "dependencies": {
     "@earendil-works/pi-ai": "1.0.0",
@@ -15,6 +17,7 @@
     "@supabase/supabase-js": "2.117.2",
     "@verdant/contracts": "workspace:*",
     "@verdant/queue": "workspace:*",
-    "geotiff": "3.0.5"
+    "geotiff": "3.0.5",
+    "zod": "4.6.5"
   }
 }

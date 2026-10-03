@@ -25,9 +25,10 @@ for (const [environment, file, current] of [
     API_ADMIN_TOKEN: randomBytes(32).toString('hex'),
     VERDANT_API_URL: environment === 'sandbox' ? 'http://127.0.0.1:3001' : '',
     API_ORIGIN: environment === 'sandbox' ? 'http://127.0.0.1:3001' : '',
-    ANTHROPIC_API_KEY: '', PI_MODEL: '',
+    ANTHROPIC_API_KEY: '', ANTHROPIC_WORKSPACE_ID: '', PI_MODEL: 'anthropic/claude-opus-5-5',
   };
   const values = { ...defaults, ...current, VERDANT_ENV: environment };
+  if (!values.PI_MODEL) values.PI_MODEL = defaults.PI_MODEL;
   // Re-running fills empty retrieved credentials, never replaces a configured key.
   if (!values.SUPABASE_SECRET_KEY && secret) values.SUPABASE_SECRET_KEY = secret;
   if (!values.SUPABASE_PUBLISHABLE_KEY && published) values.SUPABASE_PUBLISHABLE_KEY = published;
@@ -38,7 +39,7 @@ for (const [environment, file, current] of [
   const api = pick(values, [...common, ...queue, 'SUPABASE_SECRET_KEY','VERDANT_WORKER_TOKEN',
     'API_ADMIN_TOKEN','MPP_SECRET_KEY','MPP_PRICE_USD','STRIPE_SECRET_KEY','STRIPE_PROFILE_ID']);
   const worker = pick(values, [...common, ...queue, 'SUPABASE_SECRET_KEY','VERDANT_WORKER_TOKEN',
-    'VERDANT_API_URL','ANTHROPIC_API_KEY','PI_MODEL']);
+    'VERDANT_API_URL','ANTHROPIC_API_KEY','ANTHROPIC_WORKSPACE_ID','PI_MODEL']);
   const web = { ...pick(values, ['VERDANT_ENV','API_ORIGIN']),
     NEXT_PUBLIC_SUPABASE_URL: values.SUPABASE_URL,
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: values.SUPABASE_PUBLISHABLE_KEY };

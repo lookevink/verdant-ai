@@ -52,7 +52,8 @@ export type QueryRow = z.infer<typeof queryRowSchema>;
 export const selectionSchema = z.object({ datasetVersion: idSchema, tileIds: z.array(idSchema), rowCount: z.number().int().positive() });
 export const resolutionSchema = z.object({
   available: z.boolean(), reason: z.enum(["available", "coverage_unavailable", "request_too_large", "no_cell_centers", "unsupported_grid"]),
-  selection: selectionSchema.nullable(), acquisitionEnabled: z.literal(false),
+  selection: selectionSchema.nullable(),
+  acquisitionEnabled: z.boolean().describe("True when POST /api/v1/data/requests can acquire this missing coverage from the source."),
 });
 export const manifestSchema = z.object({
   datasetVersion: idSchema, datasetContentSha256: sha256Schema, requestSha256: sha256Schema,
@@ -63,3 +64,21 @@ export const manifestSchema = z.object({
   dataSha256: sha256Schema.describe("SHA-256 of UTF-8 JSON.stringify(data), using returned row and field order."),
 });
 export const queryResultSchema = z.object({ manifest: manifestSchema, data: z.array(queryRowSchema) });
+
+export const acquisitionStates = ["queued", "acquiring", "normalizing", "validating", "publishing", "ready", "failed"] as const;
+const requestLinks = z.object({ self: z.string().optional(), query: z.string().optional(), dataset: z.string().optional() });
+/** Cache hit: published coverage already satisfies the request; POST the same body to /api/v1/data/query. */
+export const dataRequestReadySchema = z.object({
+  status: z.literal("ready"), cache: z.literal("hit"), datasetVersion: idSchema, rowCount: z.number().int().positive(), links: requestLinks,
+});
+/** Cache miss accepted for acquisition, or the state of an earlier acquisition. */
+export const dataRequestStatusSchema = z.object({
+  id: z.uuid(), status: z.enum(acquisitionStates), cache: z.literal("miss").optional(),
+  created: z.boolean().optional().describe("False when an identical in-flight or recent acquisition was reused."),
+  coverageDigest: sha256Schema, target: z.record(z.string(), z.unknown()),
+  datasetVersion: idSchema.nullable(), error: z.object({ reason: z.string() }).passthrough().nullable(),
+  createdAt: z.string(), updatedAt: z.string(),
+  job: z.object({ status: z.string(), attempts: z.number().int(), maxAttempts: z.number().int() }).nullable().optional(),
+  events: z.array(z.object({ event: z.string(), details: z.record(z.string(), z.unknown()), at: z.string() })).optional(),
+  links: requestLinks,
+});

@@ -1,6 +1,6 @@
 # Climate data and pgmq
 
-Target: `ulspzrnnwrfbgldphjpe` (`verdant-ai`). The three migrations create the private `verdant` schema, pgmq transport, service-only RPCs and the private `verdant-artifacts` bucket. No PostGIS, pgvector, GDAL server import, or Redis is required.
+Target: `ulspzrnnwrfbgldphjpe` (`verdant-ai`). The four migrations create the private `verdant` schema, pgmq transport, service-only RPCs and the private `verdant-artifacts` bucket. No PostGIS, pgvector, GDAL server import, or Redis is required.
 
 ## Data model
 
@@ -9,7 +9,8 @@ Target: `ulspzrnnwrfbgldphjpe` (`verdant-ai`). The three migrations create the p
 - `raster_tiles`: bounded `real[]` cells, affine transform, EPSG CRS, source window, units and date. NULL differs from zero; NaN/infinity and incorrect array dimensions are rejected.
 - `data_quotes`, `payment_operations`, `data_requests`, `request_events`, `artifacts`: frozen requests, ownership hashes, durable entitlements, processing events and result manifests.
 - `analysis_runs`: reproducible inputs/results tied to a dataset version.
-- `jobs`: durable job identity, retry count and fencing tokens; pgmq owns message visibility and archival.
+- `jobs`: durable job identity, retry count and fencing tokens; pgmq owns message visibility and archival. Lanes: `probe`, `data_request`, `acquisition`.
+- `acquisitions`, `acquisition_events`: cache-miss acquisitions keyed by a canonical target digest (at most one live per target), their state and sanitized worker events.
 
 Every scientific/request relation has an environment key and composite foreign keys. Sandbox and production share this database by explicit choice. A service secret is trusted across both partitions; this is application-level isolation, not separate credentials/databases. API handlers select the environment from configuration, never a query parameter. Queue namespaces additionally separate test/live payment modes.
 
@@ -21,9 +22,15 @@ RLS is enabled with no browser policies. `anon`/`authenticated` cannot use the p
 
 The trusted API verifies settlement against the frozen quote before calling `verdant_submit_request`. That function atomically inserts payment/entitlement/event/job/message records. It cannot itself verify external Stripe settlement. `verdant_request_progress` records ordered processing stages. `verdant_publish_request` attaches the validated artifact reference, marks the request ready and acknowledges pgmq in one transaction, with a final lease check. Identical publication retries recover success; changed artifact identities are rejected. The trusted publisher must upload and verify the object before invoking publication.
 
+`verdant_submit_acquisition` records an acquisition and enqueues it in one transaction, or returns the live (or recently failed) acquisition for the same target. `verdant_acquisition_progress` records lease-fenced, forward-only stages and events. `verdant_publish_acquisition` inserts a content-addressed `silo-*` demo version and its tiles, checks one tile per day inside the declared bounds, publishes, marks the acquisition ready and acknowledges pgmq in one transaction; an identical existing version is reused and a lost-response retry returns success. `verdant_abandon_acquisition` ends a job that retrying cannot fix. Failed attempts return the acquisition to `queued`; the last one marks it failed.
+
 Dataset content cannot change after publication. Corrections require a new version. Raster JSON and paginated observation responses are capped at 1 MB. Catalog metadata is free; arbitrary paid extraction remains disabled until its quote/acquisition/payment integration exists.
 
-## Run locally
+## Run locally without Docker
+
+`pnpm db:test` applies every migration to in-process Postgres (PGlite + pgmq 1.5.1's SQL, downloaded once, hash-pinned and cached in `.work/vendor`) and runs `supabase/tests/*.sql`. `pnpm db:local` keeps it running with a PostgREST-compatible `/rest/v1/rpc` endpoint for the API and worker (`--env-file <path>` writes its URL and key). This approximates Supabase roles, storage and pgmq; it is not a substitute for the hosted checks.
+
+## Run locally with the Supabase CLI
 
 This stack is isolated from neighboring projects: API `58321`, Postgres `58322`, shadow DB `58320`, project ID `verdant-ai`.
 
@@ -75,7 +82,9 @@ Read APIs:
 - `GET /api/v1/layers/{version}?tile=mildura`
 - `GET /api/v1/layers/{version}/sample?tile=mildura&row=40&col=40`
 
-Next work: quote/status/download HTTP routes, the bounded Pi acquisition adapter and validators, provider settlement reconciliation/refunds, scheduled job/archive retention, and a map consuming these actual responses. The worker currently consumes diagnostic jobs only; `POST /api/v1/data/requests` continues to fail closed.
+Next work: quote/download HTTP routes and MPP-paid requests, provider settlement reconciliation/refunds, scheduled job/archive retention, and a map consuming these actual responses.
+
+`20261003211138_acquisitions.sql` was pushed on 3 October 2026. After it, the public key received `42501 permission denied` on every new RPC, and `pnpm acquisition:e2e --remote` (Pi + Claude Opus 5.5, sandbox partition) published and served a new version end to end.
 
 ## Verified 3 October 2026
 

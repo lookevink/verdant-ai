@@ -1,56 +1,106 @@
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { dataRequestSchema } from "@verdant/contracts";
+import { planAcquisition } from "@verdant/contracts/acquisition";
 import { createDatabaseRpc, JobQueue, queueNamespace } from "@verdant/queue";
+import { modelSpec } from "./acquisition/model";
+import { Workspace } from "./acquisition/operations";
+import { buildPublication } from "./acquisition/publication";
+import { acquisitionLeaseMs, processAcquisition, runAgent } from "./acquisition/supervisor";
 
 // Direct invocations default to sandbox. Production must explicitly select its profile.
 try { if (!process.env.VERDANT_PROFILE_LOADED) process.loadEnvFile(".env.local"); } catch (error) {
   if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
 }
 
+const dataDir = path.resolve(process.env.WORKER_DATA_DIR ?? path.join(import.meta.dirname, "../../../.work/worker"));
+/** Acquisition needs a model credential; without it the worker still serves diagnostics. */
+const piConfigured = () => modelSpec().provider !== "anthropic" || Boolean(process.env.ANTHROPIC_API_KEY);
+const capabilities = () => piConfigured() ? ["probe", "acquisition"] : ["probe"];
+
 async function checkServices() {
   const health = await new JobQueue(createDatabaseRpc(), queueNamespace(), "probe").health();
   return {...health, supabaseCredentials: true};
 }
+async function checkPi() {
+  const spec = modelSpec();
+  const { ModelRuntime } = await import("@earendil-works/pi-coding-agent");
+  const runtime = await ModelRuntime.create({ authPath: path.join(dataDir, ".pi-check", "auth.json"), modelsPath: null });
+  return { model: spec.label, modelKnown: Boolean(runtime.getModel(spec.provider, spec.id)), credentialConfigured: piConfigured() };
+}
 function log(event:string,details:Record<string,unknown>={}) {
   console.log(JSON.stringify({event,...details,timestamp:new Date().toISOString()}));
 }
+/** Run the Pi pipeline for one request without a database: plan, acquire, verify, write the publication locally. */
+async function acquireLocally(file: string) {
+  const plan = planAcquisition(dataRequestSchema.parse(JSON.parse(await readFile(file, "utf8"))));
+  if (!plan.ok) { log("acquisition_rejected", plan); process.exitCode = 1; return; }
+  const id = `local-${plan.coverageDigest.slice(0, 12)}-${Date.now()}`;
+  const ws = await Workspace.create(path.join(dataDir, "local", id), { acquisitionId: id, attempt: 1, target: plan.target });
+  log("local_acquisition_started", { dir: ws.dir, target: plan.target, model: modelSpec().label });
+  const outcome = await runAgent(ws, { signal: new AbortController().signal, log, onEvent: event => log("agent_event", event) });
+  log("agent_finished", { ...outcome });
+  if (!outcome.submitted) { process.exitCode = 1; return; }
+  const publication = await buildPublication(ws, { model: outcome.model ?? modelSpec().label });
+  await writeFile(ws.file("publication.json"), JSON.stringify(publication));
+  log("local_acquisition_verified", { datasetVersion: publication.dataset.id, ...publication.stats, publication: ws.file("publication.json") });
+}
+
 if (process.argv.includes("--validate")) {
-  const path = process.argv[process.argv.indexOf("--validate") + 1];
-  if (!path) throw new Error("Supply a path after --validate.");
-  const input: unknown = JSON.parse(await readFile(path, "utf8"));
+  const file = process.argv[process.argv.indexOf("--validate") + 1];
+  if (!file) throw new Error("Supply a path after --validate.");
+  const input: unknown = JSON.parse(await readFile(file, "utf8"));
   console.log(JSON.stringify(dataRequestSchema.parse(input), null, 2));
+} else if (process.argv.includes("--acquire")) {
+  const file = process.argv[process.argv.indexOf("--acquire") + 1];
+  if (!file) throw new Error("Supply a request JSON path after --acquire.");
+  await acquireLocally(file);
 } else if(process.argv.includes("--check")) {
   try {
-    log("services_checked",{...await checkServices(),
-      missingPi:["ANTHROPIC_API_KEY","PI_MODEL"].filter(k=>!process.env[k]),
-      capabilities:["probe"],acquisitionImplemented:false});
+    log("services_checked",{...await checkServices(), pi: await checkPi(),
+      missingPi:["ANTHROPIC_API_KEY"].filter(k=>!process.env[k]), capabilities:capabilities(), acquisitionImplemented:true});
   } catch { log("services_check_failed"); process.exitCode=1; }
 } else if(process.argv.includes("--run")||process.argv.includes("--once")) {
+  const once=process.argv.includes("--once");
   const stop=new AbortController();
   process.on("SIGINT",()=>stop.abort()); process.on("SIGTERM",()=>stop.abort());
-  const queue=new JobQueue(createDatabaseRpc(),queueNamespace(),"probe");
-  log("worker_started",{namespace:queueNamespace(),capabilities:["probe"]});
+  const rpc=createDatabaseRpc(), namespace=queueNamespace();
+  const probes=new JobQueue(rpc,namespace,"probe"), acquisitions=new JobQueue(rpc,namespace,"acquisition");
+  log("worker_started",{namespace,capabilities:capabilities(),model:piConfigured()?modelSpec().label:null,dataDir});
+  if(!piConfigured()) log("acquisition_disabled",{reason:"ANTHROPIC_API_KEY is not configured"});
   do {
+    let worked=false;
     try {
-      const claimed=await queue.claim();
+      const claimed=await probes.claim();
       if(claimed) {
-        log("job_claimed",{id:claimed.job.id,attempt:claimed.job.attempts});
+        worked=true;
+        log("job_claimed",{lane:"probe",id:claimed.job.id,attempt:claimed.job.attempts});
         try {
           const result=await checkServices();
-          if(!await queue.complete(claimed,result)) throw new Error("Lease lost.");
-          log("job_completed",{id:claimed.job.id});
+          if(!await probes.complete(claimed,result)) throw new Error("Lease lost.");
+          log("job_completed",{lane:"probe",id:claimed.job.id});
         } catch {
-          await queue.fail(claimed,"Service check failed");
-          log("job_retry_or_failure",{id:claimed.job.id});
-          if(process.argv.includes("--once")) process.exitCode=1;
+          await probes.fail(claimed,"Service check failed");
+          log("job_retry_or_failure",{lane:"probe",id:claimed.job.id});
+          if(once) process.exitCode=1;
+        }
+      } else if(piConfigured()) {
+        // One acquisition at a time: each runs a model session and bounded downloads.
+        const job=await acquisitions.claim(acquisitionLeaseMs);
+        if(job) {
+          worked=true;
+          log("job_claimed",{lane:"acquisition",id:job.job.id,attempt:job.job.attempts});
+          const result=await processAcquisition(job,{rpc,queue:acquisitions,namespace,dataDir,log});
+          log("job_finished",{lane:"acquisition",id:job.job.id,...result});
+          if(once&&result.status!=="ready") process.exitCode=1;
         }
       }
-    } catch { log("queue_unavailable"); if(process.argv.includes("--once")) process.exitCode=1; }
-    if(process.argv.includes("--once")||stop.signal.aborted) break;
-    try { await delay(3000,undefined,{signal:stop.signal}); } catch { break; }
+    } catch(error) { log("queue_unavailable",{message:(error as Error).message.slice(0,200)}); if(once) process.exitCode=1; }
+    if(once||stop.signal.aborted) break;
+    if(!worked) try { await delay(3000,undefined,{signal:stop.signal}); } catch { break; }
   } while(!stop.signal.aborted);
   log("worker_stopped");
 } else {
-  console.error("Use --check, --run, --once, or --validate <request.json>."); process.exitCode=1;
+  console.error("Use --check, --run, --once, --validate <request.json>, or --acquire <request.json>."); process.exitCode=1;
 }

@@ -19,7 +19,7 @@ The current API serves two published public demo datasets: SILO maximum air temp
 </CardGroup>
 
 <Note>
-Public demo reads are free and need no API key. Acquisition, quotes, payments, and asynchronous delivery are not enabled yet. The capabilities endpoint is the authoritative feature inventory; valid syntax alone does not mean data is available.
+Public demo reads are free and need no API key. Authorized clients can request SILO maximum temperature that is not yet published; it is acquired, validated and published asynchronously (see the [request lifecycle](/concepts/request-lifecycle)). Quotes and payments are not enabled yet. The capabilities endpoint is the authoritative feature inventory; valid syntax alone does not mean data is available.
 </Note>
 
 The [OpenAPI 3.1 specification](https://api.verdant-ai.com/api/v1/openapi.json) and this reference are generated from the same shared runtime schemas. `/api/v1` defines the major contract version. Additive fields may appear; clients should ignore fields they do not recognize.

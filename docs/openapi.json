@@ -3,7 +3,7 @@
   "info": {
     "title": "Verdant Climate Data API",
     "version": "1.0.0",
-    "description": "Versioned climate data with preserved meaning. Discover → inspect → resolve → query. Small published-data queries return values directly, with explicit units, spatial support, missingness and provenance. Public demo endpoints require no credentials. Paid acquisition is not enabled; consult capabilities before planning a workflow."
+    "description": "Versioned climate data with preserved meaning. Discover → inspect → resolve → query. Small published-data queries return values directly, with explicit units, spatial support, missingness and provenance. Public demo endpoints require no credentials. Missing coverage can be acquired asynchronously by authorized clients through /api/v1/data/requests; paid acquisition is not enabled. Consult capabilities before planning a workflow."
   },
   "servers": [
     {
@@ -307,7 +307,7 @@
           "Queries"
         ],
         "summary": "Resolve coverage",
-        "description": "Check complete published demo coverage for a structured climate query. Returns the selected immutable version and row count, or an explicit unavailable reason. Does not acquire data or charge.",
+        "description": "Check complete published demo coverage for a structured climate query. Returns the selected immutable version and row count, or an explicit unavailable reason; acquisitionEnabled reports whether POST /api/v1/data/requests can acquire a miss. Does not acquire data or charge.",
         "requestBody": {
           "required": true,
           "description": "A bounded climate query. JSON is the default representation. The response contains data directly; no download or acquisition job is required.",
@@ -861,16 +861,204 @@
     },
     "/api/v1/data/requests": {
       "post": {
-        "operationId": "requestAcquisition",
+        "operationId": "requestData",
         "tags": [
-          "Service"
+          "Queries"
         ],
-        "summary": "Acquisition (not enabled)",
-        "description": "Reserved asynchronous acquisition route. Always returns 503; never charges or queues work. Use the direct query endpoint for published demo data. Future quote/payment/request contracts are described separately and are not advertised as callable MCP tools.",
-        "x-verdant-status": "not_enabled",
+        "summary": "Request data, acquiring a cache miss",
+        "description": "Resolve the request against published data. A cache hit returns 200 with the immutable version to query. A miss that maps onto a supported SILO target is queued for acquisition (202) and needs a bearer token; identical in-flight or recently failed targets are reused rather than re-queued. Poll the Location URL, then POST the same body to /api/v1/data/query once ready. Never charges.",
+        "security": [
+          {
+            "bearerToken": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The same request body as /api/v1/data/query. Format does not change what is acquired.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DataRequest"
+              },
+              "example": {
+                "variables": [
+                  "air_temperature_max"
+                ],
+                "region": {
+                  "bbox": [
+                    142.3,
+                    -34.45,
+                    142.4,
+                    -34.35
+                  ],
+                  "crs": "EPSG:4326"
+                },
+                "period": {
+                  "start": "2003-01-01",
+                  "end": "2003-01-01"
+                },
+                "temporal_resolution": "daily",
+                "spatial_resolution": "native",
+                "units": {
+                  "air_temperature_max": "degC"
+                },
+                "data_class": "interpolated_observation",
+                "format": "json",
+                "missing_policy": "preserve",
+                "source_preference": "silo"
+              }
+            }
+          }
+        },
         "responses": {
+          "200": {
+            "description": "Cache hit: published coverage already satisfies the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataRequestReady"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Cache miss accepted (or an identical acquisition reused). Poll the Location URL.",
+            "headers": {
+              "Location": {
+                "description": "Status URL for this acquisition.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Suggested polling delay in seconds.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataRequestStatus"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty, malformed JSON, or unreadable body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "acquisition_unauthorized: the request is a miss and acquisition needs a bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "request_too_large: more than 31 days, 10,000 cells, or 256 cells per side.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type must be application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid contract, or an acquisition rejection: outside_source_coverage, no_cell_centers, dataset_version_pinned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "503": {
-            "description": "acquisition_not_ready",
+            "description": "Data service unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/data/requests/{id}": {
+      "get": {
+        "operationId": "getDataRequest",
+        "tags": [
+          "Queries"
+        ],
+        "summary": "Poll an acquisition",
+        "description": "Processing state (queued → acquiring → normalizing → validating → publishing → ready, or failed), attempts, sanitized tool and validation events, and the published datasetVersion once ready. Failed acquisitions include error.reason. Polling never charges.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Request ID from POST /api/v1/data/requests.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current acquisition state.",
+            "headers": {
+              "Retry-After": {
+                "description": "Present while processing.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataRequestStatus"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "request_not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Data service unavailable. Retry with exponential backoff.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1498,7 +1686,7 @@
           },
           "acquisitionEnabled": {
             "type": "boolean",
-            "const": false
+            "description": "True when POST /api/v1/data/requests can acquire this missing coverage from the source."
           }
         },
         "required": [
@@ -1674,6 +1862,213 @@
         "required": [
           "manifest",
           "data"
+        ],
+        "additionalProperties": false
+      },
+      "DataRequestReady": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "ready"
+          },
+          "cache": {
+            "type": "string",
+            "const": "hit"
+          },
+          "datasetVersion": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+          },
+          "rowCount": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "links": {
+            "type": "object",
+            "properties": {
+              "self": {
+                "type": "string"
+              },
+              "query": {
+                "type": "string"
+              },
+              "dataset": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "status",
+          "cache",
+          "datasetVersion",
+          "rowCount",
+          "links"
+        ],
+        "additionalProperties": false
+      },
+      "DataRequestStatus": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "acquiring",
+              "normalizing",
+              "validating",
+              "publishing",
+              "ready",
+              "failed"
+            ]
+          },
+          "cache": {
+            "type": "string",
+            "const": "miss"
+          },
+          "created": {
+            "description": "False when an identical in-flight or recent acquisition was reused.",
+            "type": "boolean"
+          },
+          "coverageDigest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "target": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "datasetVersion": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "reason"
+                ],
+                "additionalProperties": {}
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "job": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string"
+                  },
+                  "attempts": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "maxAttempts": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "status",
+                  "attempts",
+                  "maxAttempts"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "event": {
+                  "type": "string"
+                },
+                "details": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                },
+                "at": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "event",
+                "details",
+                "at"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "links": {
+            "type": "object",
+            "properties": {
+              "self": {
+                "type": "string"
+              },
+              "query": {
+                "type": "string"
+              },
+              "dataset": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "coverageDigest",
+          "target",
+          "datasetVersion",
+          "error",
+          "createdAt",
+          "updatedAt",
+          "links"
         ],
         "additionalProperties": false
       },
@@ -1955,7 +2350,7 @@
             "const": false
           },
           "acquisitionEnabled": {
-            "const": false
+            "type": "boolean"
           },
           "message": {
             "type": "string"
@@ -2129,6 +2524,59 @@
             ],
             "additionalProperties": false
           },
+          "acquisition": {
+            "type": "object",
+            "properties": {
+              "endpoint": {
+                "type": "string"
+              },
+              "access": {
+                "type": "string"
+              },
+              "sources": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "variables": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "firstDate": {
+                "type": "string"
+              },
+              "latestDate": {
+                "type": "string"
+              },
+              "maxDays": {
+                "type": "number"
+              },
+              "states": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "description": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "endpoint",
+              "access",
+              "sources",
+              "variables",
+              "firstDate",
+              "latestDate",
+              "maxDays",
+              "states",
+              "description"
+            ],
+            "additionalProperties": false
+          },
           "links": {
             "type": "object",
             "propertyNames": {
@@ -2144,9 +2592,17 @@
           "apiVersion",
           "features",
           "query",
+          "acquisition",
           "links"
         ],
         "additionalProperties": false
+      }
+    },
+    "securitySchemes": {
+      "bearerToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Required only to queue acquisitions for cache misses."
       }
     }
   }

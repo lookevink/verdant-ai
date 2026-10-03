@@ -10,9 +10,10 @@ The API at `https://api.verdant-ai.com` exposes a generated OpenAPI 3.1 contract
 - `GET /api/v1/datasets` and `GET /api/v1/datasets/{id}`: published catalog, coverage and provenance.
 - `POST /api/v1/data/resolve`: check complete compatible published coverage without purchasing or acquiring anything.
 - `POST /api/v1/data/query`: return data **directly in the response**, defaulting to JSON `{manifest,data}`. CSV is an alternate response representation, with provenance links and digest headers. A download is optional client behavior, not a required delivery step.
+- `POST /api/v1/data/requests`: cache hit → `200` with the version to query. Cache miss → a bounded SILO acquisition is queued (`202`, bearer token required) and `GET /api/v1/data/requests/{id}` reports progress until the new version is `ready`.
 - `/mcp`: eight read-only data tools using the same query implementation; discovery at `/.well-known/mcp`.
 
-Direct queries currently support SILO daily maximum temperature in Celsius on a native EPSG:4326 grid. The imported demo covers 1 January 2003 near Mildura. Queries are bounded to 31 days, 10,000 cells and 1 MB, require complete coverage, and support an immutable `dataset_version` pin. Study observations and native raster endpoints remain available separately. No endpoint silently converts a cache miss into paid acquisition.
+Direct queries currently support SILO daily maximum temperature in Celsius on a native EPSG:4326 grid. The imported demo covers 1 January 2003 near Mildura; any other date from 1889 to yesterday and any region on the SILO grid can be acquired on request. Queries are bounded to 31 days, 10,000 cells and 1 MB, require complete coverage, and support an immutable `dataset_version` pin. Study observations and native raster endpoints remain available separately. No endpoint converts a cache miss into a paid acquisition; queueing one requires the API bearer token until MPP-paid requests exist.
 
 Mintlify lives in the monorepo's `docs/` directory with `docs.json`, guides and generated OpenAPI. Configure the existing Mintlify site's repository as `lookevink/verdant-ai`, branch `main`, path `/docs`; see [deployment setup](docs/README.md). Hosted Mintlify deployment still requires connection to the user's existing workspace. Its built-in search MCP covers documentation; the API's own MCP supplies live data tools.
 
@@ -24,11 +25,20 @@ Run `pnpm api:verify <origin>` to check the hosted contract, direct JSON/CSV che
 |---|---|---|
 | `apps/web` | Next.js, port 3000 | Website, maps and strategy results |
 | `apps/api` | Next.js, port 3001 | Request contracts, MPP verification and job submission |
-| `apps/worker` | Persistent Node.js on the target machine | Pull jobs, run Pi/Claude acquisition and publish validated data |
+| `apps/worker` | Persistent Node.js on the target machine | Pull pgmq jobs, run Pi/Claude acquisition, verify and publish data |
 | `packages/contracts` | TypeScript/Zod | Shared data contracts |
 | `packages/queue` | Supabase pgmq + Postgres RPCs | Claims, leases, retries and idempotent enqueueing |
 
-The web server proxies `/api/*` to the API. External agents call the API directly. The worker pulls from Supabase pgmq over outbound HTTPS; no inbound worker port is required. The trusted worker supervisor has Supabase publication credentials. When Pi execution is added, give its subprocess an explicit environment allowlist: **never inherit Supabase or payment secrets into Pi**. A separate process is not a security sandbox.
+The web server proxies `/api/*` to the API. External agents call the API directly. The worker pulls from Supabase pgmq over outbound HTTPS; no inbound worker port is required. The trusted worker supervisor has Supabase publication credentials. Pi runs as a child process with an explicit environment allowlist (model credential only): **Supabase, payment and API secrets never reach Pi**. A separate process is not a security sandbox, so Pi gets five narrow acquisition tools and no shell, file or web tools.
+
+### Acquisition on a cache miss
+
+1. The API resolves the request against published data. A miss is planned onto one SILO target (dates + native grid window snapped to 1° blocks) and, in one transaction, recorded and enqueued on the `acquisition` pgmq lane. Identical targets share one acquisition.
+2. The worker claims it under a 90 s lease (renewed every 20 s) and starts Pi with `PI_MODEL` (default `anthropic/claude-opus-5-5`). Pi calls `inspect_source → fetch_source → normalize_source → validate_output → submit_manifest`; those tools do all IO and transforms deterministically against the public SILO S3 bucket.
+3. The supervisor re-runs validation (period, provenance, cell-for-cell reconciliation with source bytes, dimensions, finite/plausible values, the fixed 290,758-cell ocean mask as the only nodata), builds a content-addressed dataset version, and publishes version + tiles + `ready` + queue acknowledgement atomically with a final lease check.
+4. Failures retry twice with backoff; unfixable source problems end the request immediately. Progress and sanitized tool events are visible at `GET /api/v1/data/requests/{id}`.
+
+The published content depends only on the source bytes, so Pi and the scripted test agent produce the same dataset version for the same target. Job directories live under `.work/worker` (`WORKER_DATA_DIR`); source GeoTIFFs are deleted after publication, receipts and manifests are kept.
 
 ## Environment profiles
 
@@ -41,7 +51,7 @@ pnpm dev
 pnpm worker:sandbox
 ```
 
-Edit root profiles, then run `pnpm env:sync` again. Only public Supabase URL/publishable key reach the browser. Supabase secret keys are restricted to API and trusted worker; Stripe credentials are restricted to API. Claude credentials are restricted to the worker.
+Edit root profiles, then run `pnpm env:sync` again. Only public Supabase URL/publishable key reach the browser. Supabase secret keys are restricted to API and trusted worker; Stripe credentials are restricted to API. Claude credentials (`ANTHROPIC_API_KEY`, `PI_MODEL`, and `ANTHROPIC_WORKSPACE_ID` for organization-level keys that are not scoped to a workspace) are restricted to the worker, which passes only them to Pi.
 
 | Setting | Sandbox | Production profile |
 |---|---|---|
@@ -60,7 +70,11 @@ These are separate queue/configuration profiles, **not physically isolated datab
 
 ```sh
 pnpm typecheck
-pnpm test
+pnpm test                      # includes migrations + SQL suites on in-process Postgres (pnpm db:test)
+pnpm acquisition:e2e --scripted  # API → pgmq → worker → publish → query, scripted agent, in-memory DB
+pnpm acquisition:e2e             # same with Pi + Claude (worker production profile credentials)
+pnpm acquisition:e2e --remote    # Pi against hosted Supabase, sandbox partition, random uncached dates
+VERDANT_NETWORK_TESTS=1 pnpm --filter @verdant/worker test  # reproduces the published Mildura tile from SILO
 pnpm build
 pnpm worker:check
 pnpm queue:smoke sandbox
@@ -71,7 +85,9 @@ pnpm services:smoke production
 
 Queue smoke tests use unique job IDs in dedicated `:smoke` queues and retain their records/archives for inspection. They verify atomic concurrent claims, idempotency, stale-worker rejection, lease recovery, lane isolation and retry limits. Service smoke tests start an API on port 3101, enqueue an authenticated diagnostic, run the real worker once, and check completion. They leave the diagnostic record for inspection. Both refuse live payment profiles.
 
-The worker currently consumes **diagnostic jobs only** and verifies pgmq/Supabase access. It does not yet acquire climate data or invoke Pi. `worker:check` reports missing Claude configuration separately. Completed queue records currently have no retention policy; add bounded retention before sustained use.
+The worker consumes diagnostic probes and acquisitions, one job at a time. Without a model credential it serves probes only and logs `acquisition_disabled`. `worker:check` reports the Pi model and credential status. `pnpm --filter @verdant/worker acquire <request.json>` runs one acquisition locally without a database and writes the would-be publication for inspection. Completed queue records currently have no retention policy; add bounded retention before sustained use.
+
+`scripts/local-db.ts` runs every migration on in-process Postgres (PGlite with pgmq's SQL, pinned and hash-checked) and serves a PostgREST-compatible `/rest/v1/rpc` endpoint, so the API and worker can run without Docker or a Supabase login. It approximates Supabase; hosted checks remain authoritative.
 
 ## Vercel
 
@@ -121,9 +137,9 @@ References: [Stripe MPP](https://docs.stripe.com/payments/machine/mpp), [Stripe 
 
 ## Current scope
 
-Implemented: the versioned read/query contract, generated OpenAPI, Mintlify monorepo documentation, direct JSON/CSV responses, read-only MCP, environment distribution, pgmq queue/leases/retries, authenticated diagnostic enqueue/status, worker polling for diagnostics, Stripe MPP sandbox probe code, and verification scripts. Live queue/Supabase checks work in both profiles, including API → queue → worker completion. Pi needs `ANTHROPIC_API_KEY` and `PI_MODEL`. The Stripe sandbox payment roundtrip is verified locally; its public deployment requires the Vercel production environment update described above.
+Implemented: the versioned read/query contract, generated OpenAPI, Mintlify monorepo documentation, direct JSON/CSV responses, read-only MCP, environment distribution, pgmq queue/leases/retries, authenticated diagnostic enqueue/status, worker polling for diagnostics and acquisitions, cache-miss acquisition with Pi, Stripe MPP sandbox probe code, and verification scripts. Live queue/Supabase checks work in both profiles, including API → queue → worker completion. Pi needs `ANTHROPIC_API_KEY` (plus `ANTHROPIC_WORKSPACE_ID` for an unscoped organization key); `PI_MODEL` defaults to `anthropic/claude-opus-5-5`. The Stripe sandbox payment roundtrip is verified locally; its public deployment requires the Vercel production environment update described above.
 
-`POST /api/v1/data/requests` currently returns 503 and never charges or enqueues work. Climate schemas, handoff import, catalog/observation/raster APIs and transactional publication RPCs are implemented; see [database setup and verification](supabase/README.md). Pi execution, source acquisition, map rendering, backtests, quote lifecycle HTTP routes and paid data fulfillment are still pending.
+Cache-miss acquisition is implemented for SILO daily maximum temperature: authorized `POST /api/v1/data/requests`, pgmq queueing, the Pi worker with Claude Opus 5.5, independent validation and atomic publication. Verified 3 October 2026 locally and against the hosted sandbox partition. Climate schemas, handoff import, catalog/observation/raster APIs and transactional publication RPCs are implemented; see [database setup and verification](supabase/README.md). Map rendering, backtests, quote lifecycle HTTP routes, MPP-paid requests, more variables/sources and paid data fulfillment are still pending.
 
 ## Build specifications
 

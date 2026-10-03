@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./acquisition": "./src/acquisition.ts",
     "./openapi": "./src/openapi.ts"
   },
   "scripts": {

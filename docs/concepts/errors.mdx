@@ -8,13 +8,16 @@ REST errors contain a stable machine-readable `error` string, with optional `mes
 | HTTP status | Meaning | Client action |
 | --- | --- | --- |
 | `400` | Malformed JSON, empty body, or invalid query parameters | Correct the request. |
-| `404` | Dataset/tile absent or inaccessible under public demo access | Inspect the catalog; do not infer private data existence. |
+| `401` | `acquisition_unauthorized`: the request is not published yet and queueing an acquisition needs a bearer token | Query published coverage instead, or authenticate. |
+| `404` | Dataset/tile/request absent or inaccessible under public demo access | Inspect the catalog; do not infer private data existence. |
 | `413` | Request, row count, date range, or response exceeds a bound | Narrow the query or page size. |
 | `415` | Incorrect media type on a query POST | Send `Content-Type: application/json`. |
-| `422` | Invalid schema or unsupported/incomplete query | Inspect issues or call coverage resolution. |
-| `503` | Data service unavailable or acquisition intentionally disabled | Back off for a service outage; do not retry `acquisition_not_ready` expecting a purchase. |
+| `422` | Invalid schema, unsupported/incomplete query, or an acquisition the source cannot satisfy (`outside_source_coverage`, `no_cell_centers`, `dataset_version_pinned`) | Inspect issues or call coverage resolution. |
+| `503` | Data service unavailable | Back off with a bounded retry count. |
 
-Coverage resolution returns `200` even when `available` is false. Its `reason` is one of `coverage_unavailable`, `request_too_large`, `no_cell_centers`, or `unsupported_grid`. No result is silently truncated to make the query succeed.
+Coverage resolution returns `200` even when `available` is false. Its `reason` is one of `coverage_unavailable`, `request_too_large`, `no_cell_centers`, or `unsupported_grid`, and `acquisitionEnabled` says whether `/api/v1/data/requests` can acquire the miss. No result is silently truncated to make the query succeed.
+
+An acquisition that fails is reported by `GET /api/v1/data/requests/{id}` with `status: "failed"` and `error.reason`. Submitting the same request again within 15 minutes returns that failure; after that it starts a new acquisition.
 
 Reads and direct queries have no purchase side effects. Retry transient failures with exponential backoff and a bounded retry count. Future payment retries will require durable idempotency and reconciliation; they must not automatically re-charge an ambiguous settlement.
 

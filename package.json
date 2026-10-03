@@ -15,9 +15,12 @@
     "worker:check": "node scripts/run-profile.mjs sandbox worker pnpm exec tsx src/index.ts --check",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
-    "test": "pnpm docs:check && pnpm -r test",
+    "test": "pnpm docs:check && pnpm db:test && pnpm -r test",
     "env:sync": "node scripts/configure-env.mjs",
     "queue:smoke": "tsx scripts/queue-smoke.ts",
+    "db:local": "node --import tsx scripts/local-db.ts --serve",
+    "db:test": "node --import tsx scripts/local-db.ts --test",
+    "acquisition:e2e": "node --import tsx scripts/acquisition-e2e.ts",
     "worker:sandbox": "node scripts/run-profile.mjs sandbox worker pnpm exec tsx src/index.ts --run",
     "worker:production": "node scripts/run-profile.mjs production worker pnpm exec tsx src/index.ts --run",
     "build:production": "node scripts/run-profile.mjs production api pnpm build && node scripts/run-profile.mjs production web pnpm build",
@@ -26,6 +29,7 @@
     "stripe:sync": "node scripts/stripe-sync.mjs"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
     "@types/node": "26.6.4",
     "@verdant/queue": "workspace:*",
     "ajv": "8.20.0",

@@ -1,30 +1,36 @@
 ---
-title: "Acquisition and purchase lifecycle"
-description: "The intended contract for work that cannot be answered by a direct query."
+title: "Request and acquisition lifecycle"
+description: "How a request for data that is not yet published becomes a validated dataset version."
 ---
 
-<Warning>
-This lifecycle is a design contract, not an available purchase API. `/api/v1/data/requests` currently returns `503 acquisition_not_ready` and never charges. Quotes, request status/events, entitlements and result downloads will be added to the live OpenAPI document only after implementation and recovery checks pass.
-</Warning>
+`POST /api/v1/data/requests` takes the same body as `/api/v1/data/query`. It first checks published coverage. A cache hit returns `200` with the immutable `datasetVersion` to query. A miss that maps onto a supported source is queued for acquisition and returns `202` with a request ID. Nothing in this flow charges.
 
-## Planned sequence
+<Note>
+Queueing an acquisition currently requires `Authorization: Bearer <token>` because each acquisition runs a model session. Without it, a miss returns `401 acquisition_unauthorized` and nothing is queued. Paid requests through MPP are planned to replace that gate.
+</Note>
 
-1. `POST /api/v1/data/quotes` checks the request, source coverage, license and compatible cached data. It returns a fixed offer with a quote ID, expiry, amount in minor currency units, currency, immutable source/transform selection, output schema and resource limits. Quoting is free.
-2. `POST /api/v1/data/requests` binds that quote to an idempotency key and verified MPP payment. A bounded ready result can be returned immediately; deferred work returns `202`, a durable request ID, receipt and requester-bound credential.
-3. `GET /api/v1/data/requests/{id}` returns authorized processing state without another charge.
-4. `GET /api/v1/data/requests/{id}/events` returns sanitized source/tool/validation events in order.
-5. `GET /api/v1/data/requests/{id}/result` returns authorized data directly or a bounded artifact once ready, including its provenance manifest and checksum.
+## Sequence
 
-The quote freezes meaning, representation, price, deadline and limits. Clients must enforce their own maximum spend before purchasing. An unsupported query is rejected before payment. The API does not turn a direct read into a purchase without that explicit exchange.
+1. **Resolve.** The request is checked against published demo data with the same rules as a direct query.
+2. **Plan.** A miss is mapped deterministically onto one SILO target: variable, dates, and the native 0.05° grid window that contains the bounds, snapped outward to 1° blocks so nearby requests reuse it. Requests outside SILO coverage (1889-01-01 to yesterday, UTC), over 31 days or 10,000 cells, with no cell centers, or pinned to a `dataset_version` are rejected here, before any work is queued.
+3. **Queue.** One database transaction records the acquisition and enqueues a pgmq message. Identical targets share one acquisition: a repeat while it is in flight, or within 15 minutes of a failure, returns the existing ID with `created: false`. The output format is not part of the target.
+4. **Acquire.** A worker claims the job under an expiring lease and runs a Pi agent with Claude Opus 5.5. The agent has exactly five tools (`inspect_source`, `fetch_source`, `normalize_source`, `validate_output`, `submit_manifest`) and no shell, file or web access. The tools only read the public SILO bucket, bound every download, and verify georeferencing.
+5. **Validate.** Deterministic checks cover the complete period, canonical source provenance, cell-for-cell reconciliation with the source bytes, dimensions, finite and plausible values, and the fixed SILO ocean mask as the only missing cells. Missing values stay `null`.
+6. **Verify and publish.** The supervisor does not trust the agent's report. It re-runs every check, builds a content-addressed dataset version from the verified files, and, in one transaction, publishes the version and its tiles, marks the request `ready`, and acknowledges the queue message. An identical earlier version is reused rather than rewritten.
+7. **Serve.** POST the original body to `/api/v1/data/query`. Later compatible requests are cache hits.
 
-## Independent state machines
+Poll `GET /api/v1/data/requests/{id}` (also the `Location` header) while `Retry-After` is present. It returns the state, attempts, sanitized tool and validation events, and `datasetVersion` once ready. Model reasoning is not exposed.
 
-Processing: `queued → acquiring → normalizing → validating → publishing → ready`, with `failed` and `cancelled` terminal states.
+## States and retries
 
-Payment: `unpaid → verified`, with `reconciliation_required`, `refund_pending` and `refunded` tracked separately. A failed job is not proof of a refund. Unknown settlement must be reconciled before another charge is attempted.
+`queued → acquiring → normalizing → validating → publishing → ready`, or `failed` with `error.reason`.
 
-One logical purchase creates one durable entitlement and job. Retrying the same idempotency key with the same request recovers the existing purchase; reusing it with different input returns a conflict. Worker claims use expiring leases and fencing tokens. Published versions and artifacts are attached transactionally only after independent validation.
+A failed attempt returns to `queued` and retries after 30 s, then 60 s; the third failed attempt is terminal. Failures that retrying cannot fix end the request immediately: the source lacks a date older than a week, or the source format changed. A worker that loses its lease stops, and its stale token can no longer record progress or publish.
 
-## Acquisition boundary
+## Credentials
 
-The first acquisition adapter is bounded SILO retrieval, coordinated by Pi with explicit tools. Source discovery, download, normalization and validation events are recorded; private model reasoning is not exposed as progress. Pi receives only the provider/model credentials it needs, not database or payment secrets. Arbitrary source URLs, generic shell execution, and cross-tenant private cache reuse are not part of the initial contract.
+The Pi process receives only the model credential. Database, payment and API secrets stay with the supervisor. A separate process is not a security sandbox, which is why the agent gets narrow tools rather than general execution.
+
+## Planned: quotes and payment
+
+Paid requests will add `POST /api/v1/data/quotes` (a free, fixed-price offer that freezes source, transform, format, price and expiry) and bind an idempotency key and verified MPP payment to the request. Payment state (`unpaid → verified`, with `reconciliation_required`, `refund_pending`, `refunded`) is tracked separately from processing state. A failed job is not proof of a refund, and an unknown settlement is reconciled before any new charge.

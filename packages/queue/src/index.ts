@@ -1,5 +1,6 @@
+export type QueueLane = "probe" | "data_request" | "acquisition";
 export type QueueJob = {
-  id: string; kind: "probe" | "data_request"; payload: unknown;
+  id: string; kind: QueueLane; payload: unknown;
   status: "queued" | "running" | "completed" | "failed";
   attempts: number; maxAttempts: number; createdAt: number;
   result?: unknown; error?: string;
@@ -42,7 +43,7 @@ function leaseSeconds(ms: number) {
   return Math.ceil(ms / 1000);
 }
 export class JobQueue {
-  constructor(private rpc: DatabaseRpc, private namespace: string, private lane: "probe" | "data_request") {
+  constructor(private rpc: DatabaseRpc, private namespace: string, private lane: QueueLane) {
     if (!/^verdant:(sandbox:test|production:(test|live))(:smoke)?$/.test(namespace)) throw new Error("Invalid queue namespace.");
   }
   private call(name: string, args: Record<string, unknown> = {}) {

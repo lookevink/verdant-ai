@@ -65,7 +65,10 @@ for (const invalid of [{ ...input, format: "netcdf" }, { ...input, period: { sta
 }
 const miss = await post("/api/v1/data/resolve", { ...input, period: { start: "2003-01-02", end: "2003-01-02" } });
 const missBody = await miss.json(); validate("Resolution", missBody); assert.equal(missBody.available, false);
-const disabled = await post("/api/v1/data/requests", input); assert.equal(disabled.status, 503); validate("Error", await disabled.json());
+const hit = await post("/api/v1/data/requests", input); assert.equal(hit.status, 200); validate("DataRequestReady", await hit.json());
+// An uncached request without a bearer token is refused before anything is queued.
+const unqueued = await post("/api/v1/data/requests", { ...input, period: { start: "1890-01-01", end: "1890-01-01" } });
+assert.equal(unqueued.status, 401); validate("Error", await unqueued.json());
 
 const client = new Client({ name: "verdant-contract-verifier", version: "1.0.0" });
 try {

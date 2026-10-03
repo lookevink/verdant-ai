@@ -1,0 +1,52 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { exampleRequest, type DataRequest } from "./index.js";
+import { coverageDigest, planAcquisition, siloGrid, windowBbox } from "./acquisition.js";
+
+const now = new Date("2026-10-03T12:00:00Z");
+const request: DataRequest = { ...exampleRequest, period: { start: "2003-01-02", end: "2003-01-04" }, format: "json" };
+const contains = (outer: number[], inner: number[]) => outer[0]! <= inner[0]! && outer[1]! <= inner[1]! && outer[2]! >= inner[2]! && outer[3]! >= inner[3]!;
+
+test("maps a cache miss to a snapped, deterministic SILO window", () => {
+  const plan = planAcquisition(request, now);
+  assert.ok(plan.ok);
+  // Mildura request [142.30,-34.45,142.40,-34.35] snaps to the enclosing 1° block of native cells.
+  assert.deepEqual(plan.target.window, { col: 600, row: 480, width: 20, height: 20 });
+  assert.deepEqual(plan.target.bbox, [141.975, -34.975, 142.975, -33.975]);
+  assert.equal(plan.days, 3);
+  assert.equal(plan.coverageDigest, coverageDigest(plan.target));
+  // Representation does not change what must be acquired.
+  const csv = planAcquisition({ ...request, format: "csv" }, now);
+  assert.ok(csv.ok);
+  assert.equal(csv.coverageDigest, plan.coverageDigest);
+  const later = planAcquisition({ ...request, period: { start: "2003-01-02", end: "2003-01-05" } }, now);
+  assert.ok(later.ok);
+  assert.notEqual(later.coverageDigest, plan.coverageDigest);
+});
+test("rejects requests acquisition cannot satisfy before any work is queued", () => {
+  const reason = (input: DataRequest) => { const p = planAcquisition(input, now); return p.ok ? "ok" : p.reason; };
+  assert.equal(reason({ ...request, period: { start: "2026-10-02", end: "2026-10-03" } }), "outside_source_coverage");
+  assert.equal(reason({ ...request, period: { start: "1888-12-31", end: "1889-01-01" } }), "outside_source_coverage");
+  assert.equal(reason({ ...request, region: { ...request.region, bbox: [110, -34, 112.5, -33] } }), "outside_source_coverage");
+  assert.equal(reason({ ...request, period: { start: "2003-01-01", end: "2003-02-01" } }), "request_too_large");
+  assert.equal(reason({ ...request, region: { ...request.region, bbox: [130, -30, 136, -24] } }), "request_too_large");
+  assert.equal(reason({ ...request, region: { ...request.region, bbox: [142.31, -34.41, 142.32, -34.40] } }), "no_cell_centers");
+  assert.equal(reason({ ...request, dataset_version: "silo-tmax-20030101-e165b22947cfbbc5" }), "dataset_version_pinned");
+});
+test("acquired windows always contain the request and stay within tile limits", () => {
+  let seed = 7;
+  const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const extent = windowBbox({ col: 0, row: 0, width: siloGrid.width, height: siloGrid.height });
+  let accepted = 0;
+  for (let i = 0; i < 2000; i++) {
+    const w = Math.round((extent[0] + random() * 41) * 1e6) / 1e6, s = Math.round((extent[1] + random() * 33) * 1e6) / 1e6;
+    const bbox: [number, number, number, number] = [w, s, Math.min(extent[2], w + 0.001 + random() * 3), Math.min(extent[3], s + 0.001 + random() * 3)];
+    const plan = planAcquisition({ ...request, period: { start: "2003-01-02", end: "2003-01-02" }, region: { bbox, crs: "EPSG:4326" } }, now);
+    if (!plan.ok) { assert.ok(["no_cell_centers", "request_too_large"].includes(plan.reason)); continue; }
+    accepted++;
+    assert.ok(contains(plan.target.bbox, bbox), `window ${plan.target.bbox} must contain ${bbox}`);
+    assert.ok(plan.target.window.width <= 256 && plan.target.window.height <= 256);
+    assert.ok(plan.target.window.col + plan.target.window.width <= siloGrid.width && plan.target.window.row + plan.target.window.height <= siloGrid.height);
+  }
+  assert.ok(accepted > 1000);
+});

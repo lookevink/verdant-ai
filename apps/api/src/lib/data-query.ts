@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { planAcquisition } from "@verdant/contracts/acquisition";
 import { dataRequestSchema, deliveryLimits, queryResultSchema, type DataRequest, type Dataset, type TileIndex, type RasterTile, type QueryRow } from "@verdant/contracts";
 
 export type DataStore = {
@@ -75,10 +76,11 @@ export async function resolveData(request: DataRequest, store: DataStore) {
     const result = await plan(request, store);
     return { available: true, reason: "available" as const, selection: {
       datasetVersion: result.dataset.id, tileIds: result.selected.map(s => s.tile.id), rowCount: result.count,
-    }, acquisitionEnabled: false as const };
+    }, acquisitionEnabled: false };
   } catch (error) {
     if (!(error instanceof QueryError)) throw error;
-    return { available: false, reason: error.code, selection: null, acquisitionEnabled: false as const };
+    // A miss can be acquired when the request maps onto a bounded source target (POST /api/v1/data/requests).
+    return { available: false, reason: error.code, selection: null, acquisitionEnabled: planAcquisition(request).ok };
   }
 }
 

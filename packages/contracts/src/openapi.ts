@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { dataRequestSchema, exampleRequest } from "./index";
 import { API_VERSION, datasetSchema, errorSchema, observationSchema, rasterTileSchema, tileIndexSchema,
-  resolutionSchema, queryResultSchema, affineSchema, idSchema } from "./responses";
+  resolutionSchema, queryResultSchema, affineSchema, idSchema, dataRequestReadySchema, dataRequestStatusSchema } from "./responses";
 
 export const toolInputs = {
   empty: z.object({}).strict(),
@@ -32,14 +32,14 @@ export const operationDescriptions = {
   getCapabilities: "Discover the implemented variables, sources, representations, limits and feature availability. This does not check current source coverage.",
   listDatasets: "List published catalog metadata. Demo datasets can be read without payment; paid metadata does not grant data access. Restricted datasets are omitted.",
   getDataset: "Inspect an immutable dataset version, including units, actual coverage, source hashes, license, attribution and spatial support.",
-  resolveData: "Check complete published demo coverage for a structured climate query. Returns the selected immutable version and row count, or an explicit unavailable reason. Does not acquire data or charge.",
+  resolveData: "Check complete published demo coverage for a structured climate query. Returns the selected immutable version and row count, or an explicit unavailable reason; acquisitionEnabled reports whether POST /api/v1/data/requests can acquire a miss. Does not acquire data or charge.",
   queryData: "Return climate data directly in the response, with provenance. JSON includes a manifest and data array; CSV returns rows with version, digest and metadata-link headers. Only published public demo data is admitted. No charging, acquisition or missing-to-zero conversion.",
 } as const;
 
 export const openapi = {
   openapi: "3.1.0",
   info: { title: "Verdant Climate Data API", version: API_VERSION,
-    description: "Versioned climate data with preserved meaning. Discover → inspect → resolve → query. Small published-data queries return values directly, with explicit units, spatial support, missingness and provenance. Public demo endpoints require no credentials. Paid acquisition is not enabled; consult capabilities before planning a workflow." },
+    description: "Versioned climate data with preserved meaning. Discover → inspect → resolve → query. Small published-data queries return values directly, with explicit units, spatial support, missingness and provenance. Public demo endpoints require no credentials. Missing coverage can be acquired asynchronously by authorized clients through /api/v1/data/requests; paid acquisition is not enabled. Consult capabilities before planning a workflow." },
   servers: [{ url: "https://api.verdant-ai.com", description: "Production (public demo data; payment test mode)" }],
   security: [],
   tags: [{ name: "Discovery" }, { name: "Queries" }, { name: "Observations" }, { name: "Raster" }, { name: "Service" }],
@@ -78,14 +78,28 @@ export const openapi = {
       ...["row", "col"].map(name => ({ name, in: "query", required: true, schema: { type: "integer", minimum: 0 }, description: "Zero-based index within this tile." }))],
       description: "Return one native cell and its spatial metadata. A null value means missing, and its unit and evidence class do not change.",
       responses: { "200": json("PixelSample", "One native raster cell."), ...readErrors } } },
-    "/api/v1/data/requests": { post: { operationId: "requestAcquisition", tags: ["Service"], summary: "Acquisition (not enabled)",
-      description: "Reserved asynchronous acquisition route. Always returns 503; never charges or queues work. Use the direct query endpoint for published demo data. Future quote/payment/request contracts are described separately and are not advertised as callable MCP tools.",
-      "x-verdant-status": "not_enabled", responses: { "503": error("acquisition_not_ready") } } },
+    "/api/v1/data/requests": { post: { operationId: "requestData", tags: ["Queries"], summary: "Request data, acquiring a cache miss",
+      description: "Resolve the request against published data. A cache hit returns 200 with the immutable version to query. A miss that maps onto a supported SILO target is queued for acquisition (202) and needs a bearer token; identical in-flight or recently failed targets are reused rather than re-queued. Poll the Location URL, then POST the same body to /api/v1/data/query once ready. Never charges.",
+      security: [{ bearerToken: [] }], requestBody: { ...body, description: "The same request body as /api/v1/data/query. Format does not change what is acquired." },
+      responses: { "200": json("DataRequestReady", "Cache hit: published coverage already satisfies the request."),
+        "202": { description: "Cache miss accepted (or an identical acquisition reused). Poll the Location URL.",
+          headers: { Location: { description: "Status URL for this acquisition.", schema: { type: "string" } }, "Retry-After": { description: "Suggested polling delay in seconds.", schema: { type: "integer" } } },
+          content: { "application/json": { schema: ref("DataRequestStatus") } } },
+        "401": error("acquisition_unauthorized: the request is a miss and acquisition needs a bearer token."),
+        "413": error("request_too_large: more than 31 days, 10,000 cells, or 256 cells per side."),
+        "422": error("Invalid contract, or an acquisition rejection: outside_source_coverage, no_cell_centers, dataset_version_pinned."),
+        "400": writeErrors["400"], "415": writeErrors["415"], "503": writeErrors["503"] } } },
+    "/api/v1/data/requests/{id}": { get: { operationId: "getDataRequest", tags: ["Queries"], summary: "Poll an acquisition",
+      description: "Processing state (queued → acquiring → normalizing → validating → publishing → ready, or failed), attempts, sanitized tool and validation events, and the published datasetVersion once ready. Failed acquisitions include error.reason. Polling never charges.",
+      parameters: [{ name: "id", in: "path", required: true, description: "Request ID from POST /api/v1/data/requests.", schema: { type: "string", format: "uuid" } }],
+      responses: { "200": { description: "Current acquisition state.", headers: { "Retry-After": { description: "Present while processing.", schema: { type: "integer" } } },
+        content: { "application/json": { schema: ref("DataRequestStatus") } } }, "404": error("request_not_found"), "503": readErrors["503"] } } },
   },
   components: { schemas: {
     DataRequest: { ...schema(dataRequestSchema, true), description: "Data meaning is independent of representation and delivery. JSON (default) and CSV are returned inline. Bbox order: west,south,east,north; no antimeridian crossing. Date bounds inclusive; at most 31 days and 10,000 cells; actual coverage must pass resolve. dataset_version pins reproducibility." },
     Dataset: schema(datasetSchema), Error: schema(errorSchema), Observation: schema(observationSchema), RasterTile: schema(rasterTileSchema),
     Resolution: schema(resolutionSchema), QueryResult: schema(queryResultSchema),
+    DataRequestReady: schema(dataRequestReadySchema), DataRequestStatus: schema(dataRequestStatusSchema),
     Catalog: { type: "object", required: ["datasets"], properties: { datasets: { type: "array", items: ref("Dataset") } } },
     DatasetDetail: { type: "object", required: ["dataset"], properties: { dataset: ref("Dataset") } },
     ObservationPage: { type: "object", required: ["datasetVersion", "observations", "nextCursor"], properties: {
@@ -96,13 +110,18 @@ export const openapi = {
     PixelSample: schema(z.object({ datasetVersion: z.string(), tile: z.string(), row: z.number().int(), col: z.number().int(),
       value: z.number().nullable(), unit: z.string(), variable: z.string(), date: z.iso.date(), crs: z.string(), transform: affineSchema })),
     Validation: { type: "object", required: ["valid", "request", "coverageVerified", "acquisitionEnabled", "message"], properties: {
-      valid: { const: true }, request: ref("DataRequest"), coverageVerified: { const: false }, acquisitionEnabled: { const: false }, message: { type: "string" } } },
+      valid: { const: true }, request: ref("DataRequest"), coverageVerified: { const: false }, acquisitionEnabled: { type: "boolean" }, message: { type: "string" } } },
     Health: schema(z.object({ service: z.literal("verdant-api"), status: z.literal("ok"), scope: z.literal("process"),
       environment: z.string(), paymentMode: z.string(), capabilities: z.object({ requestValidation: z.boolean(), acquisition: z.boolean(), payments: z.boolean() }) })),
     Capabilities: schema(z.object({ apiVersion: z.string(), features: z.record(z.string(), z.boolean()),
       query: z.object({ sources: z.array(z.string()), variables: z.array(z.string()), dataClasses: z.array(z.string()), crs: z.array(z.string()),
         temporalResolutions: z.array(z.string()), spatialResolutions: z.array(z.string()), units: z.record(z.string(), z.array(z.string())),
         formats: z.array(z.string()), defaultFormat: z.string(), delivery: z.string(), missingPolicy: z.string(), access: z.string(),
-        limits: z.record(z.string(), z.number()), spatialSelection: z.string() }), links: z.record(z.string(), z.url()) })),
-  } },
+        limits: z.record(z.string(), z.number()), spatialSelection: z.string() }),
+      acquisition: z.object({ endpoint: z.string(), access: z.string(), sources: z.array(z.string()), variables: z.array(z.string()),
+        firstDate: z.string(), latestDate: z.string(), maxDays: z.number(), states: z.array(z.string()), description: z.string() }),
+      links: z.record(z.string(), z.url()) })),
+  },
+  securitySchemes: { bearerToken: { type: "http", scheme: "bearer", description: "Required only to queue acquisitions for cache misses." } },
+  },
 } as const;
