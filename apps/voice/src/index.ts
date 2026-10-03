@@ -2,11 +2,13 @@
 // browser tokens), so this process holds the Vertex credentials and bridges each browser WebSocket to one Gemini Live
 // session. A browser must first present a short-lived ticket the API signed for a live playground session.
 //   PLAYGROUND_VOICE_SECRET   shared with the API (≥32 chars)
-//   GOOGLE_APPLICATION_CREDENTIALS or VERTEX_CREDENTIALS_FILE   service-account JSON (default: ../../vertex-service-account.json)
+//   VERTEX_CREDENTIALS_FILE or GOOGLE_APPLICATION_CREDENTIALS   service-account JSON (default: ~/.config/verdant/vertex-service-account.json,
+//     then vertex-service-account.json at the repo root). On Cloud Run, attach the service account instead and omit the file.
 //   VERTEX_PROJECT (default: the service account's project), VERTEX_LOCATION (us-central1), VOICE_MODEL, VOICE_NAME, VOICE_PORT (3004)
 //   VOICE_ALLOWED_ORIGINS   comma-separated browser origins (default: local web and verdant-ai.com)
 import { existsSync, readFileSync } from "node:fs";
 import { createServer } from "node:http";
+import { homedir } from "node:os";
 import path from "node:path";
 import { GoogleAuth } from "google-auth-library";
 import { WebSocket, WebSocketServer, type RawData } from "ws";
@@ -20,7 +22,7 @@ const log = (event: string, details: Record<string, unknown> = {}) => console.lo
 const secret = process.env.PLAYGROUND_VOICE_SECRET ?? "";
 if (secret.length < 32) throw new Error("PLAYGROUND_VOICE_SECRET must be at least 32 characters and match the API.");
 const keyFile = process.env.VERTEX_CREDENTIALS_FILE ?? process.env.GOOGLE_APPLICATION_CREDENTIALS
-  ?? [path.resolve(import.meta.dirname, "../../../vertex-service-account.json")].find(existsSync);
+  ?? [path.join(homedir(), ".config/verdant/vertex-service-account.json"), path.resolve(import.meta.dirname, "../../../vertex-service-account.json")].find(existsSync);
 const project = process.env.VERTEX_PROJECT ?? (keyFile ? (JSON.parse(readFileSync(keyFile, "utf8")) as { project_id?: string }).project_id : undefined);
 if (!project) throw new Error("Set VERTEX_PROJECT or provide a service-account file.");
 const config: LiveConfig = { project, location: process.env.VERTEX_LOCATION ?? "us-central1",

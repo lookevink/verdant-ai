@@ -2,11 +2,12 @@
 // voice relay and website. Nothing here touches hosted Supabase; data reads go to the public MCP server.
 //   node --import tsx scripts/playground-dev.ts [--profile apps/worker/.env.production] [--web-port 3010] [--api-port 3011]
 // The model credential comes from the profile (default: the worker production profile) or the environment. Voice starts
-// when a Vertex service-account file is found (VERTEX_CREDENTIALS_FILE, or vertex-service-account.json at the repo root).
+// when a Vertex service-account file is found (VERTEX_CREDENTIALS_FILE, ~/.config/verdant/ or the repo root).
 // Session data is discarded on exit.
 import { spawn, type ChildProcess } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
+import { homedir } from "node:os";
 import path from "node:path";
 import { createInterface } from "node:readline";
 import { readEnv, root } from "./env-files.mjs";
@@ -17,7 +18,8 @@ const webPort = arg("--web-port", "3010"), apiPort = arg("--api-port", "3011"), 
 const profile = await readEnv(path.resolve(arg("--profile", path.join(root, "apps/worker/.env.production"))));
 const credential = (key: string) => process.env[key] ?? profile[key];
 if (!credential("ANTHROPIC_API_KEY")) throw new Error("No ANTHROPIC_API_KEY in the environment or the --profile file.");
-const vertex = [process.env.VERTEX_CREDENTIALS_FILE, path.join(root, "vertex-service-account.json")].find(f => f && existsSync(f));
+const vertex = [process.env.VERTEX_CREDENTIALS_FILE, path.join(homedir(), ".config/verdant/vertex-service-account.json"),
+  path.join(root, "vertex-service-account.json")].find(f => f && existsSync(f));
 
 const db = await createLocalDatabase();
 const rpc = await serveRpc(db, 58340);
