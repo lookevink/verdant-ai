@@ -1,6 +1,6 @@
 # Verdant AI platform roadmap
 
-Prepared 3 October 2026, America/Los_Angeles. Longer-term architecture reference. The active five-hour demo plan is [BUILD-PLAN.md](BUILD-PLAN.md). Product implementation has not started in this repository.
+Prepared 3 October 2026, America/Los_Angeles. Longer-term architecture reference. The active five-hour demo plan is [BUILD-PLAN.md](BUILD-PLAN.md), amended by [agent requested data](DATA-REQUESTS.md). The approved acquisition scope uses a logged Pi coding agent with Claude API access and Supabase project `ulspzrnnwrfbgldphjpe`. Product implementation has not started in this repository.
 
 Build Verdant as a climate decision workspace backed by a versioned data API. A person or agent should be able to find compatible data, inspect its meaning, evaluate a supported strategy, and obtain a reproducible result with sources and costs attached. The first polished demo should complete that whole journey for Australian grape irrigation.
 

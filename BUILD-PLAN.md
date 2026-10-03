@@ -1,10 +1,12 @@
 # Verdant AI five hour demo plan
 
-Prepared 3 October 2026, America/Los_Angeles. **Five hours, one builder, investors or hackathon judges.** This is the active plan. The [platform roadmap](PLATFORM-ROADMAP.md) preserves the larger architecture for later work.
+Prepared 3 October 2026, America/Los_Angeles. **Five hours, one builder, investors or hackathon judges.** This is the active plan, amended by [agent requested data](DATA-REQUESTS.md), which takes precedence for the request workflow, worker and revised schedule. The [platform roadmap](PLATFORM-ROADMAP.md) preserves the larger architecture for later work.
 
 Build one impressive working journey across all three pillars: explore normalized climate data, evaluate a supported strategy, and let an agent buy data through MPP. Make it feel like one coherent climate intelligence product. Ground the live scientific execution in the existing Australian grape trial.
 
-The pitch: **Verdant turns fragmented climate data into decision-ready data that humans can explore and agents can purchase and analyze.**
+The pitch: **Agents request clean climate data in the format they need. Verdant retrieves, preprocesses and serves it, paid through MPP, so agents do not have to process it locally.**
+
+Approved target: Supabase `ulspzrnnwrfbgldphjpe`. Remote SQL inspection found no application tables or installed PostGIS extension. Existing research inputs must be imported. Acquisition uses a logged Pi coding agent with the Claude API; the user will provide the key. Make the request/cache-miss/acquisition flow the central demo and use the map and existing backtest as proof of utility.
 
 ## What ships
 
@@ -55,7 +57,7 @@ flowchart LR
 
 Use Next.js/TypeScript for the app and API, MapLibre for the map, a familiar chart library and Python for one-time ingestion. Reuse an accessible Supabase/Postgres environment without resetting existing data or services. Pin compatible versions once.
 
-The small treatment comparison can run synchronously in the API and save its inputs/result. Check its numerical parity against the existing Python runner. Defer queues, a separate analysis service, accounts, organizations and a generic model runner.
+The small treatment comparison can run synchronously in the API and save its inputs/result. Check its numerical parity against the existing Python runner. Acquisition requires a durable Postgres job and one polling Pi worker as specified in DATA-REQUESTS.md. Defer a general queue service, accounts, organizations and a generic model runner.
 
 Limit application tables to `dataset_versions`, `observations`, `raster_tiles`, `analysis_runs` and `payment_operations`, with validated source-specific configuration in structured JSON. Keep privileged DB access on the server and expose only selected published demo data. Do not expose the private research schema.
 
@@ -98,7 +100,9 @@ Bind each logical purchase to its dataset version and canonical request digest. 
 
 Keep signing keys outside the browser and model; enforce a small test budget. Show the actual network and receipt. Test unpaid 402, a completed purchase and repeated-request recovery. Prices are demo settings until costs are measured. Do not describe a simulated receipt as a settled payment.
 
-## Five hour execution schedule
+## Original schedule before the acquisition scope addition
+
+Use the revised five-hour priorities in DATA-REQUESTS.md. This original breakdown is retained as a reference for individual UI and analysis tasks; it is not an additional five hours.
 
 | Elapsed time | Work | Checkpoint |
 |---|---|---|
