@@ -6,7 +6,14 @@ import { API_VERSION, datasetSchema, errorSchema, observationSchema, rasterTileS
 export const toolInputs = {
   empty: z.object({}).strict(),
   dataset: z.object({ id: idSchema }).strict(),
-  query: dataRequestSchema.extend({ format: z.literal("json").default("json") }),
+  // The MCP SDK publishes tool schemas as JSON Schema draft-07, where a tuple becomes `items: [...]`: invalid draft
+  // 2020-12, which model APIs require of tool schemas. The bbox is therefore a plain four-number array here; handlers
+  // still validate every request with dataRequestSchema.
+  query: dataRequestSchema.extend({
+    region: z.object({ bbox: z.array(z.number().min(-180).max(180)).length(4).describe("[west, south, east, north] in degrees"),
+      crs: z.literal("EPSG:4326") }).strict(),
+    format: z.literal("json").default("json"),
+  }),
   page: z.object({ id: idSchema, limit: z.number().int().min(1).max(1000).default(100), after: z.string().max(256).optional() }).strict(),
   sample: z.object({ id: idSchema, tile: idSchema, row: z.number().int().min(0), col: z.number().int().min(0) }).strict(),
 };

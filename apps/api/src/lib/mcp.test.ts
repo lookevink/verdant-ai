@@ -32,3 +32,31 @@ test("MCP rejects batches, excessive bodies and untrusted browser origins before
   assert.equal((await POST(request(JSON.stringify({ padding: "x".repeat(33_000) })))).status, 413);
   assert.equal((await POST(request("{}", "https://untrusted.example"))).status, 403);
 });
+
+test("MCP tool schemas are valid JSON Schema 2020-12 and the data contract still validates requests", async () => {
+  const server = createMcpServer({ async catalog() { return []; }, async tiles() { return []; }, async tile() { throw new Error("Unused"); } });
+  const client = new Client({ name: "schema-test", version: "1" });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  try {
+    await server.connect(serverTransport);
+    await client.connect(clientTransport);
+    // Draft-07 tuple keywords are rejected by model APIs that validate tool schemas against 2020-12.
+    const tupleForms: string[] = [];
+    const visit = (value: unknown, path: string) => {
+      if (Array.isArray(value)) return value.forEach((v, i) => visit(v, `${path}/${i}`));
+      if (!value || typeof value !== "object") return;
+      for (const [key, child] of Object.entries(value)) {
+        if ((key === "items" && Array.isArray(child)) || key === "additionalItems") tupleForms.push(`${path}/${key}`);
+        visit(child, `${path}/${key}`);
+      }
+    };
+    for (const tool of (await client.listTools()).tools) visit(tool.inputSchema, tool.name);
+    assert.deepEqual(tupleForms, []);
+    const reversed = await client.callTool({ name: "resolve_data", arguments: { variables: ["air_temperature_max"],
+      region: { bbox: [142.4, -34.45, 142.3, -34.35], crs: "EPSG:4326" }, period: { start: "2003-01-01", end: "2003-01-01" },
+      temporal_resolution: "daily", spatial_resolution: "native", units: { air_temperature_max: "degC" },
+      data_class: "interpolated_observation", missing_policy: "preserve", source_preference: "silo" } });
+    assert.equal(reversed.isError, true);
+    assert.ok(JSON.stringify(reversed.structuredContent).includes("invalid_request"));
+  } finally { await client.close(); await server.close(); }
+});

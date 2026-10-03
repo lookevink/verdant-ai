@@ -24,6 +24,13 @@ Add the Verdant data endpoint to any client that supports remote MCP. For client
 }
 ```
 
+Codex reads remote servers from `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.verdant-data]
+url = "https://api.verdant-ai.com/mcp"
+```
+
 Client-specific configuration formats vary. The stable connection information is the URL above and Streamable HTTP transport. The server is stateless, with JSON responses and no long-lived SSE session. Send one operation per HTTP request; batches are rejected. Request bodies are limited to 32 KiB and complete responses, including the MCP envelope, to 1 MB. Narrow a query if the structured result plus its text representation exceeds that bound.
 
 ## Tools

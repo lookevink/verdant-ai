@@ -25,7 +25,8 @@ Run `pnpm api:verify <origin>` to check the hosted contract, direct JSON/CSV che
 |---|---|---|
 | `apps/web` | Next.js, port 3000 | Website, maps and strategy results |
 | `apps/api` | Next.js, port 3001 | Request contracts, MPP verification and job submission |
-| `apps/worker` | Persistent Node.js on the target machine | Pull pgmq jobs, run Pi/Claude acquisition, verify and publish data |
+| `apps/worker` | Persistent Node.js on the target machine | Pull pgmq jobs, run Pi/Claude acquisition, verify and publish data; serve playground sessions |
+| `apps/voice` | Node.js WebSocket relay, port 3004 | Gemini Live voice for the playground sprout; the only holder of Vertex credentials |
 | `packages/contracts` | TypeScript/Zod | Shared data contracts |
 | `packages/queue` | Supabase pgmq + Postgres RPCs | Claims, leases, retries and idempotent enqueueing |
 
@@ -39,6 +40,35 @@ The web server proxies `/api/*` to the API. External agents call the API directl
 4. Failures retry twice with backoff; unfixable source problems end the request immediately. Progress and sanitized tool events are visible at `GET /api/v1/data/requests/{id}`.
 
 The published content depends only on the source bytes, so Pi and the scripted test agent produce the same dataset version for the same target. Job directories live under `.work/worker` (`WORKER_DATA_DIR`); source GeoTIFFs are deleted after publication, receipts and manifests are kept.
+
+## Playground
+
+`/playground` on the website answers natural-language questions with evidence. A question (typed, or spoken to the Verdant sprout) starts a Pi analyst on the worker that finds fitting datasets through the public MCP server, gathers and processes the data, documents its methodology, and publishes a markdown report with Vega-Lite charts, KaTeX equations and downloadable tables beside the conversation. A live trail shows every step, script and tool result.
+
+```
+browser ─HTTPS─▶ API /api/v1/playground/* ─RPC─▶ Postgres session event log ◀─lease─ worker ─spawn─▶ Pi per active session ─▶ Verdant MCP (read-only)
+   │ ◀────────── SSE events ─────────┘
+   └─WebSocket─▶ voice relay (apps/voice) ─▶ Vertex AI Gemini Live (gemini-3.8-live)
+```
+
+- **Sessions.** `POST /api/v1/playground/sessions` returns an ID and a bearer token (stored only as SHA-256). Messages append to `verdant.playground_events`; the worker claims sessions with unanswered messages under a 60 s lease, gives each active session its own Pi process, batches streamed text, tool steps and artifacts into the same log every 250 ms, and keeps Pi warm for 2 minutes. Follow-ups and cancellation reach the running worker through its leased writes. The browser follows the log over SSE and reconnects from the last sequence number. Delivery is at least once: a crashed turn fails once, while shutdown or a lost lease replays it with the recorded conversation.
+- **What Pi can do.** Verdant MCP through an allowlist (metadata tools declared; data tools reachable only from codemode, so bulk rows stay out of the conversation; tools the server adds later, such as paid acquisition, stay hidden until added), codemode (a QuickJS sandbox with no Node APIs, files, network or timers), `save_dataset`, `render_chart` (Vega-Lite reading saved datasets only, no URLs or inline values), `write_report` (GFM + LaTeX with `![…](chart:id)`/`![…](dataset:name)` embeds) and `read_skill` (the repository's methodology skills). No shell, file or web tools; its environment holds only the model credential and the public MCP URL. Limits: 80 tool calls and 7 minutes per turn, 20 turns per session, 30 sessions a day per address.
+- **Voice.** Vertex AI's Live API has no browser tokens, so `apps/voice` holds the service account and bridges each browser WebSocket to Gemini Live after checking a 2-minute HMAC ticket the API signed for that session. Model, voice, persona and tools are fixed in the relay. The sprout calls `ask_verdant` to send a spoken question to the Pi session and reads the analyst's reply aloud; its mouth follows the output level. Without microphone access, voice still reads answers.
+
+```sh
+pnpm playground:dev          # in-memory Postgres, API :3011, worker (playground only), voice relay :3004, web :3010/playground
+pnpm playground:e2e          # scripted agent: ordering, SSE replay, warm follow-ups, cancel, crash recovery, idle release, voice tickets
+pnpm playground:e2e --pi     # one real Pi turn against the public MCP
+```
+
+`playground:dev` reads the model credential from the environment or `apps/worker/.env.production`, and starts voice when `vertex-service-account.json` (or `VERTEX_CREDENTIALS_FILE`) exists. To deploy: apply `20261003235900_playground.sql`, run `pnpm env:sync` (generates `PLAYGROUND_SALT` and `PLAYGROUND_VOICE_SECRET`), set `PLAYGROUND_ACCESS_CODE` for public deployments (every session runs Claude Opus), and run the worker as usual (`--run` serves playground sessions; `PLAYGROUND_ENABLED=0` disables them, `--playground` serves only them). Host the voice relay where WebSockets work, ideally Cloud Run in the Vertex project using its service account instead of a key file, then set `PLAYGROUND_VOICE_URL` (`wss://…/live`) on the API and `VOICE_ALLOWED_ORIGINS` on the relay.
+
+To show the same data in a coding agent, add the MCP server to Codex (`~/.codex/config.toml`):
+
+```toml
+[mcp_servers.verdant-data]
+url = "https://api.verdant-ai.com/mcp"
+```
 
 ## Environment profiles
 

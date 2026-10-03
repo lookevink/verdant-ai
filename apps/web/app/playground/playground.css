@@ -1,0 +1,220 @@
+/* Playground: conversation and sprout on the left, the evolving report on the right. Uses the site's tokens. */
+.pg { --surface: #fbfef6; --nav-h: 76px; display: flex; flex-direction: column; height: 100svh; min-height: 560px; background:
+  radial-gradient(70% 50% at 12% 0%, rgba(198, 243, 107, .28), transparent 70%), radial-gradient(60% 50% at 100% 100%, rgba(14, 140, 120, .12), transparent 70%), var(--dew) }
+.pg button { font: inherit; color: inherit; cursor: pointer }
+.pg button:disabled { cursor: default }
+
+.pg-nav { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 12px; height: var(--nav-h); padding: 0 var(--gutter) }
+.pg-brand { display: flex; align-items: center; gap: 8px; font-size: 22px; font-weight: 700; letter-spacing: -.05em }
+.pg-brand span { margin-left: 6px; padding: 5px 10px; border-radius: 999px; background: var(--moss); color: var(--lime); font: 600 11px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase }
+.pg-nav-meta { display: flex; align-items: center; gap: 10px }
+.pg-agent { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 999px; background: rgba(251, 254, 246, .7); box-shadow: inset 0 0 0 1px var(--line); font: 500 12px/1 var(--mono); color: var(--ink-2) }
+.pg-agent i { width: 7px; height: 7px; border-radius: 50%; background: #9aa89e }
+.pg-agent[data-state="ready"] i { background: var(--verdant); box-shadow: 0 0 0 3px rgba(29, 168, 74, .18) }
+.pg-agent[data-state="starting"] i { background: var(--dandelion); animation: pg-pulse 1s ease-in-out infinite alternate }
+.pg-chip-button { padding: 9px 14px; border: 0; border-radius: 999px; background: var(--moss); color: var(--lime) !important; font-size: 13px !important; font-weight: 600 !important }
+
+.pg-main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(360px, 5fr) minmax(0, 7fr); grid-template-rows: minmax(0, 1fr); gap: clamp(14px, 2vw, 28px); padding: 0 var(--gutter) clamp(14px, 2vw, 28px) }
+.pg-nav { flex: none }
+.pg-chat { display: flex; flex-direction: column; min-height: 0; min-width: 0 }
+
+/* Stage: the sprout and what it is saying. Centered and large until the first question. */
+.pg-stage { display: flex; align-items: center; gap: 14px; padding: 4px 4px 12px; transition: padding .6s var(--ease) }
+.pg-stage { flex: none }
+.pg-stage[data-empty] { flex-direction: column; text-align: center; padding: clamp(0px, 2svh, 28px) 0 14px }
+.pg-bubble { position: relative; flex: 1; display: flex; flex-direction: column; gap: 6px; padding: 14px 18px; border-radius: 22px 22px 22px 6px; background: var(--surface); box-shadow: 0 0 0 1px var(--line), 0 18px 40px -28px rgba(6, 63, 37, .5); font-size: 15.5px; line-height: 1.45; min-height: 52px }
+.pg-stage[data-empty] .pg-bubble { flex: none; max-width: 440px; border-radius: 22px; font-size: 17px }
+.pg-heard { font-size: 13px; color: var(--ink-2); font-style: italic }
+
+.pg-log { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 4px 4px 16px; scrollbar-width: thin }
+.pg-intro { max-width: 560px; margin: 0 auto; text-align: center; color: var(--ink-2); line-height: 1.55 }
+.pg-suggestions { display: grid; gap: 8px; margin: 20px 0 0; padding: 0; list-style: none; text-align: left }
+.pg-suggestions button { width: 100%; padding: 13px 16px; border: 0; border-radius: 16px; background: rgba(251, 254, 246, .75); box-shadow: inset 0 0 0 1px var(--line); text-align: left; font-size: 14.5px !important; line-height: 1.35; transition: background .3s, box-shadow .3s, transform .4s var(--ease) }
+.pg-suggestions button:hover { background: var(--surface); box-shadow: inset 0 0 0 1px rgba(29, 168, 74, .45); transform: translateY(-1px) }
+
+.pg-turn { display: flex; flex-direction: column; gap: 10px; padding: 14px 0; animation: pg-rise .5s var(--ease) both }
+.pg-turn + .pg-turn { border-top: 1px dashed var(--line) }
+.pg-user { align-self: flex-end; max-width: 88%; padding: 11px 15px; border-radius: 18px 18px 6px 18px; background: var(--moss); color: var(--dew); font-size: 15px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere }
+.pg-said { margin-right: 8px; padding: 2px 7px; border-radius: 999px; background: rgba(198, 243, 107, .2); color: var(--lime); font: 600 10px/1.6 var(--mono); letter-spacing: .08em; text-transform: uppercase; vertical-align: 1px }
+.pg-reply { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; max-width: 94%; padding: 13px 16px; border-radius: 18px 18px 18px 6px; background: var(--surface); box-shadow: 0 0 0 1px var(--line); font-size: 15.5px; line-height: 1.5 }
+.pg-link { padding: 0; border: 0; background: none; color: var(--fern) !important; font-size: 13.5px !important; font-weight: 600 !important }
+.pg-turn-error { color: #a33a2a; font-size: 14px }
+.pg-quiet { color: var(--ink-2); font-size: 14px; line-height: 1.5 }
+.pg-wait { animation: pg-pulse 1.2s ease-in-out infinite alternate }
+
+/* Methodology trail: what the analyst did, in order, with scripts and results one click away. */
+.pg-work { border-radius: 16px; background: rgba(251, 254, 246, .55); box-shadow: inset 0 0 0 1px var(--line) }
+.pg-work-toggle { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 14px; border: 0; background: none; font: 500 12.5px/1.2 var(--mono) !important; color: var(--ink-2) !important; text-align: left }
+.pg-cost { margin-left: auto; opacity: .8 }
+.pg-spinner { width: 12px; height: 12px; flex: none; border-radius: 50%; background: var(--verdant) }
+.pg-spinner[data-live] { background: none; border: 2px solid rgba(29, 168, 74, .25); border-top-color: var(--verdant); animation: pg-spin .8s linear infinite }
+.pg-trail, .pg-children { margin: 0; padding: 0; list-style: none }
+.pg-trail { padding: 2px 14px 12px }
+.pg-children { margin-left: 7px; padding-left: 12px; border-left: 1px solid var(--line) }
+.pg-note { margin: 6px 0; padding-left: 20px; color: var(--ink-2); font-size: 13.5px; line-height: 1.5; font-style: italic }
+.pg-note[data-streaming]::after { content: "▍"; margin-left: 2px; color: var(--verdant); animation: pg-pulse .7s steps(2) infinite }
+.pg-step-head { display: flex; align-items: center; gap: 8px; width: 100%; padding: 5px 0; border: 0; background: none; text-align: left; font-size: 13.5px !important; line-height: 1.35 }
+.pg-step-head:not(:disabled):hover .pg-label { color: var(--fern) }
+.pg-dot { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--verdant); margin: 0 4px }
+.pg-step[data-status="running"] > .pg-step-head .pg-dot { background: var(--dandelion); animation: pg-pulse .8s ease-in-out infinite alternate }
+.pg-step[data-status="failed"] > .pg-step-head .pg-dot { background: var(--poppy) }
+.pg-kind { flex: none; min-width: 48px; padding: 2px 6px; border-radius: 6px; background: rgba(6, 63, 37, .07); font: 600 10px/1.5 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); text-align: center }
+.pg-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0 }
+.pg-step-body { display: grid; gap: 6px; margin: 2px 0 8px 20px }
+.pg-step-body pre { margin: 0; max-height: 280px; overflow: auto; padding: 10px 12px; border-radius: 10px; background: var(--soil); color: #d8f5c8; font: 12px/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere }
+.pg-step-body .pg-result { background: rgba(6, 63, 37, .06); color: var(--ink) }
+
+/* Composer */
+.pg-code { display: flex; align-items: flex-end; gap: 8px; margin: 4px 0 8px }
+.pg-code label { flex: 1; display: grid; gap: 6px; font: 500 12px/1 var(--mono); color: var(--ink-2) }
+.pg-code input { padding: 10px 12px; border: 0; border-radius: 12px; box-shadow: inset 0 0 0 1px var(--line); background: var(--surface); font: 15px var(--sans) }
+.pg-notice { margin: 0 0 8px; padding: 9px 12px; border-radius: 12px; background: rgba(255, 207, 51, .22); font-size: 13.5px }
+.pg-composer { flex: none; display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 22px; background: var(--surface); box-shadow: 0 0 0 1px var(--line), 0 18px 40px -26px rgba(6, 63, 37, .45) }
+.pg-composer:focus-within { box-shadow: 0 0 0 2px rgba(29, 168, 74, .55), 0 18px 40px -26px rgba(6, 63, 37, .45) }
+.pg-composer textarea { width: 100%; min-height: 44px; max-height: 160px; padding: 8px 10px; border: 0; outline: 0; resize: none; background: none; font: 16px/1.45 var(--sans); color: var(--ink); field-sizing: content }
+.pg-composer-actions { display: flex; align-items: center; gap: 8px }
+.pg-voice, .pg-icon { display: inline-flex; align-items: center; gap: 7px; height: 40px; padding: 0 14px; border: 0; border-radius: 999px; background: rgba(6, 63, 37, .06); font-size: 13.5px !important; font-weight: 600 !important; transition: background .3s, color .3s }
+.pg-voice svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round }
+.pg-voice[data-state="on"] { background: var(--moss); color: var(--lime) !important }
+.pg-voice[data-state="on"] svg rect { fill: currentColor; animation: pg-pulse 1.1s ease-in-out infinite alternate }
+.pg-voice[data-state="connecting"] { background: rgba(255, 207, 51, .35) }
+.pg-icon[aria-pressed="true"] { background: rgba(255, 91, 58, .16) }
+.pg-send { display: grid; place-items: center; width: 42px; height: 42px; margin-left: auto; border: 0; border-radius: 50%; background: var(--moss); color: var(--lime) !important; transition: transform .4s var(--ease), opacity .3s }
+.pg-send:disabled { opacity: .35 }
+.pg-send:not(:disabled):hover { transform: translateX(2px) }
+.pg-send svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round }
+
+/* Report panel */
+.pg-panel { display: flex; flex-direction: column; min-height: 0; min-width: 0; border-radius: 28px; background: var(--surface); box-shadow: 0 0 0 1px var(--line), 0 30px 60px -40px rgba(6, 63, 37, .55); overflow: hidden }
+.pg-tabs { display: flex; align-items: center; gap: 4px; padding: 10px 12px; border-bottom: 1px solid var(--line) }
+.pg-tabs [role="tab"] { display: inline-flex; align-items: center; gap: 6px; padding: 9px 14px; border: 0; border-radius: 999px; background: none; font-size: 14px !important; font-weight: 600 !important; color: var(--ink-2) !important }
+.pg-tabs [role="tab"][aria-selected="true"] { background: var(--meadow); color: var(--moss) !important }
+.pg-tabs b { min-width: 18px; padding: 1px 6px; border-radius: 999px; background: var(--moss); color: var(--lime); font: 600 11px/1.5 var(--mono) }
+.pg-download { margin-left: auto; padding: 8px 12px; border: 0; border-radius: 999px; background: rgba(6, 63, 37, .06); font: 600 12px/1 var(--mono) !important }
+.pg-panel-body { flex: 1; min-height: 0; overflow-y: auto; padding: clamp(20px, 3vw, 44px) }
+.pg-placeholder { max-width: 560px; margin: 6svh auto 0 }
+.pg-eyebrow { font: 500 12px/1.4 var(--mono); letter-spacing: .16em; text-transform: uppercase; color: var(--poppy) }
+.pg-placeholder h2 { margin: 10px 0 22px; font-size: clamp(30px, 3.4vw, 46px); font-weight: 600; letter-spacing: -.04em; line-height: 1 }
+.pg-placeholder em { color: var(--fern) }
+.pg-placeholder ol { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; counter-reset: s }
+.pg-placeholder li { counter-increment: s; display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 14px; background: rgba(228, 243, 212, .45); color: var(--ink-2); font-size: 15px }
+.pg-placeholder li::before { content: "0" counter(s); font: 500 11px/1 var(--mono); color: var(--fern) }
+.pg-placeholder[data-running] li { animation: pg-shimmer 1.8s ease-in-out infinite; animation-delay: calc(var(--i) * 140ms) }
+
+.pg-report { max-width: 760px; margin: 0 auto; color: var(--ink); font-size: 16px; line-height: 1.65; animation: pg-rise .6s var(--ease) both }
+.pg-report > * + * { margin-top: 14px }
+.pg-report h1 { margin: 0 0 6px; font-size: clamp(30px, 3.2vw, 44px); font-weight: 600; line-height: 1.04; letter-spacing: -.04em }
+.pg-report h2 { margin-top: 34px; padding-top: 18px; border-top: 1px solid var(--line); font-size: 13px; font-weight: 500; font-family: var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--fern) }
+.pg-report h3 { margin-top: 22px; font-size: 18px; font-weight: 600; letter-spacing: -.01em }
+.pg-report p, .pg-report li { color: #1d3b2a }
+.pg-report ul, .pg-report ol { padding-left: 22px }
+.pg-report li + li { margin-top: 4px }
+.pg-report strong { color: var(--ink) }
+.pg-report a { color: var(--fern); text-decoration: underline; text-underline-offset: 2px }
+.pg-report code { padding: 1px 6px; border-radius: 6px; background: rgba(6, 63, 37, .07); font: .86em var(--mono) }
+.pg-report pre { padding: 14px; border-radius: 14px; background: var(--soil); color: #d8f5c8; overflow-x: auto }
+.pg-report pre code { background: none; padding: 0 }
+.pg-report blockquote { margin: 16px 0; padding: 4px 16px; border-left: 3px solid var(--lime); color: var(--ink-2) }
+.pg-report .katex-display { margin: 18px 0; padding: 14px 8px; border-radius: 14px; background: rgba(228, 243, 212, .45); overflow-x: auto; overflow-y: hidden }
+.pg-table-wrap { max-width: 100%; overflow-x: auto; border-radius: 14px; box-shadow: inset 0 0 0 1px var(--line) }
+.pg table { width: 100%; border-collapse: collapse; font-size: 13.5px; font-variant-numeric: tabular-nums }
+.pg th { position: sticky; top: 0; padding: 9px 12px; background: #eef7e3; text-align: left; font-weight: 600; white-space: nowrap; vertical-align: bottom }
+.pg th small { display: block; font: 500 10.5px/1.4 var(--mono); color: var(--ink-2) }
+.pg td { padding: 7px 12px; border-top: 1px solid var(--line); white-space: nowrap }
+.pg td[data-null] { color: #9aa89e }
+.pg-chart, .pg-dataset { margin: 22px 0; padding: 0 }
+.pg-chart-canvas { width: 100%; min-height: 220px }
+.pg-chart figcaption, .pg-dataset figcaption { margin-top: 8px; font-size: 13px; line-height: 1.5; color: var(--ink-2) }
+.pg-dataset figcaption > span { display: block }
+.pg-dataset-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px }
+.pg-dataset-head div:first-child { display: grid; gap: 2px }
+.pg-dataset-head span { font: 500 11.5px/1.4 var(--mono); color: var(--ink-2) }
+.pg-dataset-actions { display: flex; gap: 6px }
+.pg-dataset-actions button { padding: 7px 11px; border: 0; border-radius: 999px; background: var(--moss); color: var(--lime) !important; font: 600 11.5px/1 var(--mono) !important }
+.pg-more { margin-top: 8px; font-size: 12.5px; color: var(--ink-2) }
+.pg-missing { display: block; padding: 14px; border-radius: 12px; background: rgba(255, 207, 51, .2); font-size: 14px }
+.pg-datasets { display: grid; gap: 12px; max-width: 900px; margin: 0 auto }
+#vg-tooltip-element.vg-tooltip.custom-theme { padding: 8px 10px; border: 0; border-radius: 10px; background: var(--moss); color: var(--dew); font: 12px/1.45 var(--sans); box-shadow: 0 12px 30px -12px rgba(0, 0, 0, .45) }
+#vg-tooltip-element.custom-theme td.key { color: var(--lime); padding-right: 8px }
+#vg-tooltip-element.custom-theme td { border: 0; padding: 1px 0 }
+
+.pg-switch { display: none }
+
+/* Sprout: sways when idle, perks up to listen, looks up while thinking, talks with --mouth, bounces when done. */
+.sprout { flex: none; aspect-ratio: 200 / 220; transition: width .6s var(--ease) }
+.sprout svg { display: block; width: 100%; height: 100%; overflow: visible }
+.sprout-shadow { fill: rgba(6, 63, 37, .18) }
+.sprout-soil { fill: #6b4a2b }
+.sprout-stem { fill: none; stroke: #12813a; stroke-width: 9; stroke-linecap: round }
+.sprout-vein { fill: none; stroke: rgba(6, 63, 37, .28); stroke-width: 2; stroke-linecap: round }
+.sprout-body { transform-origin: 100px 206px; animation: sprout-sway 5.5s ease-in-out infinite alternate }
+.sprout-leaf-l { transform-origin: 98px 84px; animation: sprout-leaf-l 4.2s ease-in-out infinite alternate }
+.sprout-leaf-r { transform-origin: 102px 80px; animation: sprout-leaf-r 4.8s ease-in-out infinite alternate }
+.sprout-leaf-l, .sprout-leaf-r, .sprout-leaves .sprout-vein { transition: transform .6s var(--ease) }
+.sprout-head { transform-origin: 100px 168px; transition: transform .6s var(--ease) }
+.sprout-gloss { fill: none; stroke: rgba(255, 255, 255, .55); stroke-width: 4; stroke-linecap: round }
+.sprout-cheek { fill: #ff5b3a; opacity: .22; transition: opacity .5s }
+.sprout-eye ellipse { fill: #072a1a }
+.sprout-glint { fill: #fff }
+.sprout-eyes { transform-box: fill-box; transition: transform .5s var(--ease) }
+.sprout-eye { transform-box: fill-box; transform-origin: center; animation: sprout-blink 5s infinite }
+.sprout-eye + .sprout-eye { animation-delay: .04s }
+.sprout-happy-eye { fill: none; stroke: #072a1a; stroke-width: 3.4; stroke-linecap: round; opacity: 0 }
+.sprout-brow { fill: none; stroke: rgba(7, 42, 26, .55); stroke-width: 2.6; stroke-linecap: round; opacity: 0; transition: opacity .4s, transform .4s var(--ease) }
+.sprout-smile { fill: none; stroke: #072a1a; stroke-width: 3.2; stroke-linecap: round; opacity: calc(1 - var(--mouth, 0) * 6); transition: opacity .1s }
+.sprout-open { fill: #3a1410; transform-box: fill-box; transform-origin: center top; transform: scaleY(calc(var(--mouth, 0) * 1.25)) scaleX(calc(.7 + var(--mouth, 0) * .45)) }
+.sprout-thought { fill: rgba(251, 254, 246, .95); stroke: var(--line); opacity: 0; transition: opacity .4s }
+.sprout-thought circle { transform-box: fill-box; transform-origin: center; animation: sprout-think 1.4s ease-in-out infinite }
+.sprout-thought circle:nth-child(2) { animation-delay: .2s }
+.sprout-thought circle:nth-child(3) { animation-delay: .4s }
+
+.sprout[data-mood="listening"] .sprout-leaf-l { transform: rotate(-12deg) }
+.sprout[data-mood="listening"] .sprout-leaf-r { transform: rotate(12deg) }
+.sprout[data-mood="listening"] .sprout-head { transform: rotate(-4deg) }
+.sprout[data-mood="listening"] .sprout-eye ellipse { transform: scale(1.08) }
+.sprout[data-mood="thinking"] .sprout-eyes { transform: translate(3px, -4px) }
+.sprout[data-mood="thinking"] .sprout-brow { opacity: 1; transform: translateY(-2px) }
+.sprout[data-mood="thinking"] .sprout-thought { opacity: 1 }
+.sprout[data-mood="thinking"] .sprout-body { animation-duration: 2.6s }
+.sprout[data-mood="speaking"] .sprout-cheek { opacity: .4 }
+.sprout[data-mood="speaking"] .sprout-head { animation: sprout-nod .9s ease-in-out infinite alternate }
+.sprout[data-mood="happy"] .sprout-eye { opacity: 0 }
+.sprout[data-mood="happy"] .sprout-happy-eye { opacity: 1 }
+.sprout[data-mood="happy"] .sprout-cheek { opacity: .45 }
+.sprout[data-mood="happy"] .sprout-body { animation: sprout-hop .5s var(--ease) 2 alternate }
+.sprout[data-mood="happy"] .sprout-leaf-l { transform: rotate(-18deg) }
+.sprout[data-mood="happy"] .sprout-leaf-r { transform: rotate(18deg) }
+.sprout[data-mood="sad"] .sprout-leaf-l { transform: rotate(26deg) }
+.sprout[data-mood="sad"] .sprout-leaf-r { transform: rotate(-26deg) }
+.sprout[data-mood="sad"] .sprout-head { transform: rotate(3deg) translateY(4px) }
+.sprout[data-mood="sad"] .sprout-smile { transform: translateY(150px) scaleY(-1) translateY(-142px) }
+
+@keyframes sprout-sway { from { transform: rotate(-2.2deg) } to { transform: rotate(2.2deg) } }
+@keyframes sprout-leaf-l { from { transform: rotate(3deg) } to { transform: rotate(-5deg) } }
+@keyframes sprout-leaf-r { from { transform: rotate(-3deg) } to { transform: rotate(5deg) } }
+@keyframes sprout-blink { 0%, 93%, 100% { transform: scaleY(1) } 95.5% { transform: scaleY(.08) } }
+@keyframes sprout-think { 0%, 100% { transform: translateY(0); opacity: .5 } 50% { transform: translateY(-4px); opacity: 1 } }
+@keyframes sprout-nod { from { transform: rotate(-1.5deg) } to { transform: rotate(1.5deg) translateY(1px) } }
+@keyframes sprout-hop { from { transform: translateY(0) } to { transform: translateY(-12px) scaleY(1.03) } }
+@keyframes pg-spin { to { transform: rotate(360deg) } }
+@keyframes pg-pulse { from { opacity: .45 } to { opacity: 1 } }
+@keyframes pg-rise { from { opacity: 0; transform: translateY(8px) } }
+@keyframes pg-shimmer { 0%, 100% { background: rgba(228, 243, 212, .45) } 50% { background: rgba(198, 243, 107, .45) } }
+
+@media (prefers-reduced-motion: reduce) {
+  .sprout *, .pg * { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important }
+}
+
+@media (max-width: 960px) {
+  .pg { --nav-h: 64px }
+  .pg-main { grid-template-columns: 1fr; padding-bottom: 8px }
+  .pg-switch { flex: none }
+  .pg-main[data-pane="chat"] .pg-panel, .pg-main[data-pane="report"] .pg-chat { display: none }
+  .pg-panel { border-radius: 22px }
+  .pg-panel-body { padding: 18px 16px }
+  .pg-switch { position: sticky; bottom: 0; z-index: 20; display: flex; gap: 6px; padding: 8px var(--gutter) 12px; background: linear-gradient(transparent, var(--dew) 30%) }
+  .pg-switch button { flex: 1; height: 44px; border: 0; border-radius: 999px; background: rgba(6, 63, 37, .07); font-weight: 600 }
+  .pg-switch button[aria-pressed="true"] { background: var(--moss); color: var(--lime) }
+  .pg-agent { display: none }
+  .pg-stage[data-empty] .sprout { width: 132px !important }
+}

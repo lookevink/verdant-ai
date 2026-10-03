@@ -3,8 +3,8 @@ import path from 'node:path';
 import { readEnv, root } from './env-files.mjs';
 
 const [profile, service, ...command] = process.argv.slice(2);
-if (!['sandbox','production'].includes(profile) || !['web','api','worker'].includes(service) || !command.length)
-  throw new Error('Usage: run-profile.mjs sandbox|production web|api|worker <command> [args]');
+if (!['sandbox','production'].includes(profile) || !['web','api','worker','voice'].includes(service) || !command.length)
+  throw new Error('Usage: run-profile.mjs sandbox|production web|api|worker|voice <command> [args]');
 const file = profile === 'sandbox' ? '.env.local' : '.env.production';
 const values = await readEnv(path.join(root,'apps',service,file));
 if (values.VERDANT_ENV !== profile) throw new Error(`Missing or mismatched ${service}/${file}; run env:sync.`);

@@ -8,6 +8,7 @@ import { modelSpec } from "./acquisition/model";
 import { Workspace } from "./acquisition/operations";
 import { buildPublication } from "./acquisition/publication";
 import { acquisitionLeaseMs, processAcquisition, runAgent } from "./acquisition/supervisor";
+import { runPlayground } from "./playground/host";
 
 // Direct invocations default to sandbox. Production must explicitly select its profile.
 try { if (!process.env.VERDANT_PROFILE_LOADED) process.loadEnvFile(".env.local"); } catch (error) {
@@ -17,7 +18,9 @@ try { if (!process.env.VERDANT_PROFILE_LOADED) process.loadEnvFile(".env.local")
 const dataDir = path.resolve(process.env.WORKER_DATA_DIR ?? path.join(import.meta.dirname, "../../../.work/worker"));
 /** Acquisition needs a model credential; without it the worker still serves diagnostics. */
 const piConfigured = () => modelSpec().provider !== "anthropic" || Boolean(process.env.ANTHROPIC_API_KEY);
-const capabilities = () => piConfigured() ? ["probe", "acquisition"] : ["probe"];
+const capabilities = () => piConfigured() ? ["probe", "acquisition", "playground"] : ["probe"];
+/** Playground sessions read data through the public MCP server, never the database. */
+const mcpUrl = () => process.env.VERDANT_MCP_URL || new URL("/mcp", process.env.VERDANT_API_URL || "https://api.verdant-ai.com").href;
 
 async function checkServices() {
   const health = await new JobQueue(createDatabaseRpc(), queueNamespace(), "probe").health();
@@ -61,15 +64,20 @@ if (process.argv.includes("--validate")) {
     log("services_checked",{...await checkServices(), pi: await checkPi(),
       missingPi:["ANTHROPIC_API_KEY"].filter(k=>!process.env[k]), capabilities:capabilities(), acquisitionImplemented:true});
   } catch { log("services_check_failed"); process.exitCode=1; }
-} else if(process.argv.includes("--run")||process.argv.includes("--once")) {
-  const once=process.argv.includes("--once");
+} else if(process.argv.includes("--run")||process.argv.includes("--once")||process.argv.includes("--playground")) {
+  const once=process.argv.includes("--once"), playgroundOnly=process.argv.includes("--playground");
   const stop=new AbortController();
   process.on("SIGINT",()=>stop.abort()); process.on("SIGTERM",()=>stop.abort());
   const rpc=createDatabaseRpc(), namespace=queueNamespace();
   const probes=new JobQueue(rpc,namespace,"probe"), acquisitions=new JobQueue(rpc,namespace,"acquisition");
   log("worker_started",{namespace,capabilities:capabilities(),model:piConfigured()?modelSpec().label:null,dataDir});
   if(!piConfigured()) log("acquisition_disabled",{reason:"ANTHROPIC_API_KEY is not configured"});
-  do {
+  // Playground sessions run beside the job lanes; each active session has its own Pi process.
+  const playground=!once&&piConfigured()&&process.env.PLAYGROUND_ENABLED!=="0" ? runPlayground({rpc,namespace,dataDir,log,signal:stop.signal,
+    mcpUrl:mcpUrl(),skillsDir:path.resolve(import.meta.dirname,"../../../skills"),concurrency:Number(process.env.PLAYGROUND_CONCURRENCY)||3,
+    idleMs:Number(process.env.PLAYGROUND_IDLE_MS)||undefined}) : null;
+  if(playgroundOnly&&!playground) { log("playground_disabled"); process.exitCode=1; }
+  while(!playgroundOnly) {
     let worked=false;
     try {
       const claimed=await probes.claim();
@@ -99,8 +107,9 @@ if (process.argv.includes("--validate")) {
     } catch(error) { log("queue_unavailable",{message:(error as Error).message.slice(0,200)}); if(once) process.exitCode=1; }
     if(once||stop.signal.aborted) break;
     if(!worked) try { await delay(3000,undefined,{signal:stop.signal}); } catch { break; }
-  } while(!stop.signal.aborted);
+  }
+  await playground;
   log("worker_stopped");
 } else {
-  console.error("Use --check, --run, --once, --validate <request.json>, or --acquire <request.json>."); process.exitCode=1;
+  console.error("Use --check, --run, --once, --playground, --validate <request.json>, or --acquire <request.json>."); process.exitCode=1;
 }

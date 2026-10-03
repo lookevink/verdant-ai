@@ -55,7 +55,9 @@ for(const app of ['api','web']) {
   for(const [file,targets] of [['.env.local',['development','preview']],['.env.production',['production']]]) {
     const values=await readEnv(path.join(root,'apps',app,file));
     for(const target of targets) {
-      const vars=Object.entries(values).filter(([key,value])=>value && !(app==='web'&&key==='API_ORIGIN'&&target==='preview'))
+      // Loopback URLs (local API origin, local voice relay) only make sense for development.
+      const loopback=value=>/^(https?|wss?):\/\/(127\.0\.0\.1|localhost)[:/]/.test(value);
+      const vars=Object.entries(values).filter(([key,value])=>value && !(app==='web'&&key==='API_ORIGIN'&&target==='preview') && !(target!=='development'&&loopback(value)))
         .map(([key,value])=>({key,value,target:[target],type:target==='development'?'encrypted':
           /SECRET|TOKEN/.test(key)?'sensitive':'encrypted'}));
       let uploaded=0;

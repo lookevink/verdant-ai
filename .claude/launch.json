@@ -33,6 +33,16 @@
         "3002"
       ],
       "port": 3002
+    },
+    {
+      "name": "playground",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "--import",
+        "tsx",
+        "scripts/playground-dev.ts"
+      ],
+      "port": 3010
     }
   ]
 }

@@ -1,5 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { API_VERSION, capabilities, deliveryLimits } from "@verdant/contracts";
+import { API_VERSION, capabilities, dataRequestSchema, deliveryLimits } from "@verdant/contracts";
 import { openapi, operationDescriptions, toolInputs } from "@verdant/contracts/openapi";
 import { dataStore } from "./climate-data";
 import { queryData, resolveData, QueryError, type DataStore } from "./data-query";
@@ -20,6 +20,11 @@ async function result(action: () => Promise<Record<string, unknown>>) {
     return { isError: true, content: [{ type: "text" as const, text: JSON.stringify({ error: error instanceof QueryError ? error.code : "data_service_unavailable" }) }] };
   }
 }
+/** Tool input is looser than the data contract (see toolInputs.query); the contract decides. */
+function checked(input: unknown, run: (request: ReturnType<typeof dataRequestSchema.parse>) => Promise<Record<string, unknown>>) {
+  const parsed = dataRequestSchema.safeParse(input);
+  return parsed.success ? run(parsed.data) : Promise.resolve({ error: "invalid_request", issues: parsed.error.issues });
+}
 function queryRequest(path: string, params: Record<string, string | number | undefined>) {
   const url = new URL(path, "https://api.verdant-ai.com");
   for (const [key, value] of Object.entries(params)) if (value !== undefined) url.searchParams.set(key, String(value));
@@ -36,9 +41,9 @@ export function createMcpServer(store: DataStore = dataStore) {
   server.registerTool("get_dataset", { description: operationDescriptions.getDataset, inputSchema: toolInputs.dataset, annotations },
     ({ id }) => result(async () => { const dataset = (await store.catalog()).find(d => d.id === id); return dataset ? { dataset } : { error: "dataset_not_found" }; }));
   server.registerTool("resolve_data", { description: operationDescriptions.resolveData, inputSchema: toolInputs.query, annotations },
-    request => result(() => resolveData(request, store)));
+    request => result(() => checked(request, r => resolveData(r, store))));
   server.registerTool("query_data", { description: operationDescriptions.queryData + " This MCP tool returns structured JSON; use REST for CSV.", inputSchema: toolInputs.query, annotations },
-    request => result(() => queryData(request, store)));
+    request => result(() => checked(request, r => queryData(r, store))));
   server.registerTool("list_observations", { description: openapi.paths["/api/v1/datasets/{id}/observations"].get.description, inputSchema: toolInputs.page, annotations },
     ({ id, ...params }) => result(async () => (await getObservations(queryRequest(`/api/v1/datasets/${id}/observations`, params), { params: Promise.resolve({ id }) })).json()));
   server.registerTool("list_raster_tiles", { description: "List native tile metadata and coverage for a public demo dataset. Follow nextCursor until null.", inputSchema: toolInputs.page, annotations },
