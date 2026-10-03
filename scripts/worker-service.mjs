@@ -1,5 +1,5 @@
-// Run the production worker as an always-on macOS launchd agent on this machine.
-//   node scripts/worker-service.mjs install|restart|status|uninstall [sandbox|production]
+// Run the production worker (or the playground voice relay) as an always-on macOS launchd agent on this machine.
+//   node scripts/worker-service.mjs install|restart|status|uninstall [sandbox|production] [worker|voice]
 // launchd restarts it after crashes and at login; caffeinate -i keeps the Mac from idle-sleeping while it runs.
 import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, rmSync, writeFileSync, existsSync } from 'node:fs';
@@ -7,20 +7,21 @@ import { homedir } from 'node:os';
 import path from 'node:path';
 import { root } from './env-files.mjs';
 
-const [action = 'status', profile = 'production'] = process.argv.slice(2);
+const [action = 'status', profile = 'production', service = 'worker'] = process.argv.slice(2);
 if (!['sandbox', 'production'].includes(profile)) throw new Error('Profile must be sandbox or production.');
-const label = `com.verdant-ai.worker.${profile}`;
+if (!['worker', 'voice'].includes(service)) throw new Error('Service must be worker or voice.');
+const label = service === 'worker' ? `com.verdant-ai.worker.${profile}` : `com.verdant-ai.${service}.${profile}`;
 const plist = path.join(homedir(), 'Library/LaunchAgents', `${label}.plist`);
-const log = path.join(homedir(), 'Library/Logs', `verdant-worker-${profile}.log`);
+const log = path.join(homedir(), 'Library/Logs', `verdant-${service}-${profile}.log`);
 const domain = `gui/${process.getuid()}`;
 const launchctl = (...args) => spawnSync('launchctl', args, { encoding: 'utf8' });
 const escape = value => value.replaceAll('&', '&amp;').replaceAll('<', '&lt;');
 
 function install() {
-  if (!existsSync(path.join(root, 'apps/worker', profile === 'sandbox' ? '.env.local' : '.env.production')))
-    throw new Error(`Missing apps/worker/${profile === 'sandbox' ? '.env.local' : '.env.production'}; run pnpm env:sync.`);
-  const args = ['/usr/bin/caffeinate', '-i', process.execPath, path.join(root, 'scripts/run-profile.mjs'), profile, 'worker',
-    path.join(root, 'node_modules/.bin/tsx'), 'src/index.ts', '--run'];
+  const file = profile === 'sandbox' ? '.env.local' : '.env.production';
+  if (!existsSync(path.join(root, 'apps', service, file))) throw new Error(`Missing apps/${service}/${file}; run pnpm env:sync.`);
+  const args = ['/usr/bin/caffeinate', '-i', process.execPath, path.join(root, 'scripts/run-profile.mjs'), profile, service,
+    path.join(root, 'node_modules/.bin/tsx'), 'src/index.ts', ...(service === 'worker' ? ['--run'] : [])];
   mkdirSync(path.dirname(plist), { recursive: true });
   mkdirSync(path.dirname(log), { recursive: true });
   writeFileSync(plist, `<?xml version="1.0" encoding="UTF-8"?>
