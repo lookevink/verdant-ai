@@ -49,6 +49,7 @@ export function Playground() {
   const sproutRef = useRef<HTMLDivElement>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const narrated = useRef(new Set<number>());
+  const fresh = useRef(true);
   const followedAt = useRef(0);
   sessionRef.current = session;
 
@@ -144,8 +145,9 @@ export function Playground() {
       },
       microphone: setMicrophone,
       userTranscript: (text, finished) => { setHeard(h => (h + text).slice(-240)); if (finished) setTimeout(() => setHeard(""), 2500); },
-      sproutTranscript: text => setSaid(s => (s + text).slice(-400)),
-      speaking: on => { setSpeaking(on); if (on) { setSaid(""); setHeard(""); } },
+      // Transcript text can arrive just before its audio, so a new utterance starts after the previous one finished.
+      sproutTranscript: text => { setSaid(s => (fresh.current ? text : s + text).slice(-400)); fresh.current = false; },
+      speaking: on => { setSpeaking(on); if (on) setHeard(""); else fresh.current = true; },
       toolCall: async call => {
         const active = sessionRef.current;
         if (call.name === "ask_verdant") {
