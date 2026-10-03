@@ -1,0 +1,509 @@
+{
+  "status": "PASS",
+  "api_origin": "https://api.verdant-ai.com",
+  "environment": "production",
+  "project_ref": "ulspzrnnwrfbgldphjpe",
+  "perennial": {
+    "status": "PASS",
+    "checked_at_utc": "2026-10-03T20:51:59.345000+00:00",
+    "api_origin": "https://api.verdant-ai.com",
+    "source_dataset_version": "perennial-inputs-d3c609605ef64eb7",
+    "scenario_dataset_version": "perennial-scenarios-4c062dd28a270bf7",
+    "input_cells": 382,
+    "scenario_count": 6184,
+    "content_hashes_verified": true,
+    "families": {
+      "bellvert": {
+        "cases": 2592,
+        "max_abs_error": 1.8189894035458565e-12,
+        "positive": 565,
+        "negative": 1595,
+        "zero": 432
+      },
+      "csiro": {
+        "cases": 768,
+        "max_abs_error": 9.094947017729282e-13,
+        "positive": 233,
+        "negative": 535,
+        "zero": 0
+      },
+      "garcia": {
+        "cases": 1120,
+        "max_abs_error": 0,
+        "positive": 448,
+        "negative": 672,
+        "zero": 0
+      },
+      "shackel": {
+        "cases": 48,
+        "max_abs_error": 2.2737367544323206e-13,
+        "positive": 0,
+        "negative": 48,
+        "zero": 0
+      },
+      "stewart": {
+        "cases": 1536,
+        "max_abs_error": 0,
+        "positive": 335,
+        "negative": 1197,
+        "zero": 4
+      },
+      "summer": {
+        "cases": 72,
+        "max_abs_error": 0,
+        "positive": 36,
+        "negative": 36,
+        "zero": 0
+      },
+      "winter": {
+        "cases": 48,
+        "max_abs_error": 9.094947017729282e-13,
+        "positive": 48,
+        "negative": 0,
+        "zero": 0
+      }
+    },
+    "csiro_annual_comparisons": [
+      {
+        "year": 2003,
+        "action": "RDI",
+        "water_saved_m3_ha": 350.99999999999966,
+        "yield_change_kg_ha": -1680
+      },
+      {
+        "year": 2003,
+        "action": "PD",
+        "water_saved_m3_ha": 500.99999999999966,
+        "yield_change_kg_ha": -3170
+      },
+      {
+        "year": 2004,
+        "action": "RDI",
+        "water_saved_m3_ha": 1090.999999999995,
+        "yield_change_kg_ha": -320
+      },
+      {
+        "year": 2004,
+        "action": "PD",
+        "water_saved_m3_ha": 1511.9999999999948,
+        "yield_change_kg_ha": 870
+      },
+      {
+        "year": 2005,
+        "action": "RDI",
+        "water_saved_m3_ha": 170.0,
+        "yield_change_kg_ha": -960
+      },
+      {
+        "year": 2005,
+        "action": "PD",
+        "water_saved_m3_ha": 727.999999999999,
+        "yield_change_kg_ha": -6530
+      }
+    ],
+    "evidence_limits": [
+      "Retrospective treatment replay; not forecast alpha or prospective profit validation.",
+      "Keep all comparators and years. Scenario counts are not independent trials.",
+      "Winter costs are published models. Summer water/cost nulls remain unknown.",
+      "Stewart water and yield use different periods; consumptive-water discrepancy remains unresolved.",
+      "Bellvert and Shackel unfavorable pruning results are retained."
+    ],
+    "scope": "Fresh API-sourced economic recomputation, not prospective scientific validation. No local handoff data was read."
+  },
+  "decision_studies": {
+    "status": "PASS",
+    "api_origin": "https://api.verdant-ai.com",
+    "content_hashes_verified": true,
+    "forecast": {
+      "rain": {
+        "dataset_version": "nws-day2-rain-824b6d331f2bbda0",
+        "period_count": 363972,
+        "comparisons": [
+          {
+            "alpha": 0.05,
+            "n_seasons": 1000,
+            "n_years": 15,
+            "E_H": 0.05,
+            "dE_H": 0.0,
+            "pct_saving_H": 0.0,
+            "E_F_raw": 0.03819079474669657,
+            "dE_F_raw": -0.01180920525330343,
+            "pct_saving_F_raw": 0.2361841050660686,
+            "E_F_cal": 0.038189673511685715,
+            "dE_F_cal": -0.011810326488314288,
+            "pct_saving_F_cal": 0.23620652976628576,
+            "E_P": 0.009631802245331176,
+            "dE_P": -0.04036819775466883,
+            "pct_saving_P": 0.8073639550933766
+          },
+          {
+            "alpha": 0.1,
+            "n_seasons": 1000,
+            "n_years": 15,
+            "E_H": 0.10016015791774255,
+            "dE_H": 0.0,
+            "pct_saving_H": 0.0,
+            "E_F_raw": 0.06350645212857434,
+            "dE_F_raw": -0.03665370578916821,
+            "pct_saving_F_raw": 0.36595095845665904,
+            "E_F_cal": 0.05853214815096564,
+            "dE_F_cal": -0.041628009766776906,
+            "pct_saving_F_cal": 0.4156144582056699,
+            "E_P": 0.01926360449066235,
+            "dE_P": -0.0808965534270802,
+            "pct_saving_P": 0.8076719836396149
+          },
+          {
+            "alpha": 0.25,
+            "n_seasons": 1000,
+            "n_years": 15,
+            "E_H": 0.19291806274544254,
+            "dE_H": 0.0,
+            "pct_saving_H": 0.0,
+            "E_F_raw": 0.11133013625177059,
+            "dE_F_raw": -0.08158792649367196,
+            "pct_saving_F_raw": 0.42291491699939004,
+            "E_F_cal": 0.11318697194631702,
+            "dE_F_cal": -0.07973109079912552,
+            "pct_saving_F_cal": 0.4132899204173098,
+            "E_P": 0.048159011226655876,
+            "dE_P": -0.14475905151878665,
+            "pct_saving_P": 0.7503654632370934
+          },
+          {
+            "alpha": 0.5,
+            "n_seasons": 1000,
+            "n_years": 15,
+            "E_H": 0.1926360449066235,
+            "dE_H": 0.0,
+            "pct_saving_H": 0.0,
+            "E_F_raw": 0.16339905619829068,
+            "dE_F_raw": -0.02923698870833283,
+            "pct_saving_F_raw": 0.15177319863738314,
+            "E_F_cal": 0.16323432203864838,
+            "dE_F_cal": -0.029401722867975127,
+            "pct_saving_F_cal": 0.152628356142938,
+            "E_P": 0.09631802245331175,
+            "dE_P": -0.09631802245331175,
+            "pct_saving_P": 0.5
+          }
+        ]
+      },
+      "frost": {
+        "dataset_version": "nws-day2-frost-13cd4dc470f5744b",
+        "period_count": 77008,
+        "comparisons": [
+          {
+            "alpha": 0.05,
+            "n_seasons": 1000,
+            "n_years": 15,
+            "E_H": 0.025013623965088782,
+            "dE_H": 0.0,
+            "pct_saving_H": 0.0,
+            "E_F_raw": 0.01527362101163367,
+            "dE_F_raw": -0.009740002953455111,
+            "pct_saving_F_raw": 0.3893879178422574,
+            "E_F_cal": 0.0070970847462241875,
+            "dE_F_cal": -0.017916539218864595,
+            "pct_saving_F_cal": 0.7162712305850003,
+            "E_P": 0.0022570581379903394,
+            "dE_P": -0.02275656582709844,
+            "pct_saving_P": 0.9097668478129962
+          },
+          {
+            "alpha": 0.1,
+            "n_seasons": 1000,
+            "n_years": 15,
+            "E_H": 0.036780781471704806,
+            "dE_H": 0.0,
+            "pct_saving_H": 0.0,
+            "E_F_raw": 0.017333822020632814,
+            "dE_F_raw": -0.019446959451071992,
+            "pct_saving_F_raw": 0.5287261083898502,
+            "E_F_cal": 0.011511244270696303,
+            "dE_F_cal": -0.025269537201008503,
+            "pct_saving_F_cal": 0.6870310034181351,
+            "E_P": 0.004514116275980679,
+            "dE_P": -0.032266665195724124,
+            "pct_saving_P": 0.877269701856298
+          },
+          {
+            "alpha": 0.25,
+            "n_seasons": 1000,
+            "n_years": 15,
+            "E_H": 0.045376528385929434,
+            "dE_H": 0.0,
+            "pct_saving_H": 0.0,
+            "E_F_raw": 0.02351442504763024,
+            "dE_F_raw": -0.021862103338299195,
+            "pct_saving_F_raw": 0.48179321151148924,
+            "E_F_cal": 0.022091494458680132,
+            "dE_F_cal": -0.023285033927249302,
+            "pct_saving_F_cal": 0.5131515070789249,
+            "E_P": 0.011285290689951695,
+            "dE_P": -0.03409123769597774,
+            "pct_saving_P": 0.7512967366306698
+          }
+        ]
+      }
+    },
+    "ohio": {
+      "source_dataset_version": "ohio-trials-6160e6c50ca0f5b2",
+      "scenario_dataset_version": "ohio-policies-b352e82b25799b75",
+      "treatment_outcomes": 230,
+      "comparisons": [
+        {
+          "variant": 0,
+          "alpha": 0.01,
+          "fee": 0,
+          "policy": "margin",
+          "primary": true,
+          "trials": 18,
+          "equal_trial_usd_acre": 23.091812396928,
+          "equal_year_usd_acre": 50.405523815478865
+        },
+        {
+          "variant": 1,
+          "alpha": 0.01,
+          "fee": 0,
+          "policy": "per_field_cost_cap",
+          "primary": true,
+          "trials": 18,
+          "equal_trial_usd_acre": 0.0,
+          "equal_year_usd_acre": 0.0
+        },
+        {
+          "variant": 2,
+          "alpha": 0.01,
+          "fee": 0,
+          "policy": "shared_year_budget",
+          "primary": true,
+          "trials": 18,
+          "equal_trial_usd_acre": 0.0,
+          "equal_year_usd_acre": 0.0
+        },
+        {
+          "variant": 3,
+          "alpha": 0.01,
+          "fee": 5,
+          "policy": "margin",
+          "primary": true,
+          "trials": 18,
+          "equal_trial_usd_acre": 18.647367952483556,
+          "equal_year_usd_acre": 45.6436190535741
+        },
+        {
+          "variant": 4,
+          "alpha": 0.01,
+          "fee": 5,
+          "policy": "per_field_cost_cap",
+          "primary": true,
+          "trials": 18,
+          "equal_trial_usd_acre": 0.0,
+          "equal_year_usd_acre": 0.0
+        },
+        {
+          "variant": 5,
+          "alpha": 0.01,
+          "fee": 5,
+          "policy": "shared_year_budget",
+          "primary": true,
+          "trials": 18,
+          "equal_trial_usd_acre": 0.0,
+          "equal_year_usd_acre": 0.0
+        },
+        {
+          "variant": 6,
+          "alpha": 0.1,
+          "fee": 0,
+          "policy": "margin",
+          "primary": false,
+          "trials": 18,
+          "equal_trial_usd_acre": 8.5847314240512,
+          "equal_year_usd_acre": 18.280228582326863
+        },
+        {
+          "variant": 7,
+          "alpha": 0.1,
+          "fee": 0,
+          "policy": "per_field_cost_cap",
+          "primary": false,
+          "trials": 18,
+          "equal_trial_usd_acre": 0.0,
+          "equal_year_usd_acre": 0.0
+        },
+        {
+          "variant": 8,
+          "alpha": 0.1,
+          "fee": 0,
+          "policy": "shared_year_budget",
+          "primary": false,
+          "trials": 18,
+          "equal_trial_usd_acre": 0.0,
+          "equal_year_usd_acre": 0.0
+        },
+        {
+          "variant": 9,
+          "alpha": 0.1,
+          "fee": 5,
+          "policy": "margin",
+          "primary": false,
+          "trials": 18,
+          "equal_trial_usd_acre": 3.5847314240511996,
+          "equal_year_usd_acre": 13.280228582326862
+        },
+        {
+          "variant": 10,
+          "alpha": 0.1,
+          "fee": 5,
+          "policy": "per_field_cost_cap",
+          "primary": false,
+          "trials": 18,
+          "equal_trial_usd_acre": 0.0,
+          "equal_year_usd_acre": 0.0
+        },
+        {
+          "variant": 11,
+          "alpha": 0.1,
+          "fee": 5,
+          "policy": "shared_year_budget",
+          "primary": false,
+          "trials": 18,
+          "equal_trial_usd_acre": 0.0,
+          "equal_year_usd_acre": 0.0
+        },
+        {
+          "variant": 12,
+          "alpha": 1,
+          "fee": 0,
+          "policy": "margin",
+          "primary": false,
+          "trials": 18,
+          "equal_trial_usd_acre": 8.5847314240512,
+          "equal_year_usd_acre": 18.280228582326863
+        },
+        {
+          "variant": 13,
+          "alpha": 1,
+          "fee": 0,
+          "policy": "per_field_cost_cap",
+          "primary": false,
+          "trials": 18,
+          "equal_trial_usd_acre": 0.0,
+          "equal_year_usd_acre": 0.0
+        },
+        {
+          "variant": 14,
+          "alpha": 1,
+          "fee": 0,
+          "policy": "shared_year_budget",
+          "primary": false,
+          "trials": 18,
+          "equal_trial_usd_acre": -79.7932170326016,
+          "equal_year_usd_acre": -95.9336221047223
+        },
+        {
+          "variant": 15,
+          "alpha": 1,
+          "fee": 5,
+          "policy": "margin",
+          "primary": false,
+          "trials": 18,
+          "equal_trial_usd_acre": 3.5847314240511996,
+          "equal_year_usd_acre": 13.280228582326862
+        },
+        {
+          "variant": 16,
+          "alpha": 1,
+          "fee": 5,
+          "policy": "per_field_cost_cap",
+          "primary": false,
+          "trials": 18,
+          "equal_trial_usd_acre": 0.0,
+          "equal_year_usd_acre": 0.0
+        },
+        {
+          "variant": 17,
+          "alpha": 1,
+          "fee": 5,
+          "policy": "shared_year_budget",
+          "primary": false,
+          "trials": 18,
+          "equal_trial_usd_acre": -43.42112556833565,
+          "equal_year_usd_acre": -18.609053815000994
+        },
+        {
+          "variant": 18,
+          "alpha": 10,
+          "fee": 0,
+          "policy": "margin",
+          "primary": false,
+          "trials": 18,
+          "equal_trial_usd_acre": -227.51651632089602,
+          "equal_year_usd_acre": -268.97932250848186
+        },
+        {
+          "variant": 19,
+          "alpha": 10,
+          "fee": 0,
+          "policy": "per_field_cost_cap",
+          "primary": false,
+          "trials": 18,
+          "equal_trial_usd_acre": -227.51651632089602,
+          "equal_year_usd_acre": -268.97932250848186
+        },
+        {
+          "variant": 20,
+          "alpha": 10,
+          "fee": 0,
+          "policy": "shared_year_budget",
+          "primary": false,
+          "trials": 18,
+          "equal_trial_usd_acre": -227.51651632089602,
+          "equal_year_usd_acre": -268.97932250848186
+        },
+        {
+          "variant": 21,
+          "alpha": 10,
+          "fee": 5,
+          "policy": "margin",
+          "primary": false,
+          "trials": 18,
+          "equal_trial_usd_acre": -232.51651632089602,
+          "equal_year_usd_acre": -273.9793225084819
+        },
+        {
+          "variant": 22,
+          "alpha": 10,
+          "fee": 5,
+          "policy": "per_field_cost_cap",
+          "primary": false,
+          "trials": 18,
+          "equal_trial_usd_acre": -232.51651632089602,
+          "equal_year_usd_acre": -273.9793225084819
+        },
+        {
+          "variant": 23,
+          "alpha": 10,
+          "fee": 5,
+          "policy": "shared_year_budget",
+          "primary": false,
+          "trials": 18,
+          "equal_trial_usd_acre": -232.51651632089602,
+          "equal_year_usd_acre": -273.9793225084819
+        }
+      ]
+    },
+    "checked_at_utc": "2026-10-03T20:50:21.682295+00:00",
+    "scope": "Decision replay from frozen forecast/model inputs and observed outcomes; no model refit. NWS bootstrap intervals retained as references, not freshly reproduced. Other forecast leads and raw caches excluded."
+  },
+  "additional_checks": {
+    "local_atomic_imports": "PASS",
+    "perennial_repeat_import_without_content_writes": "PASS",
+    "integrity_unit_tests": 5,
+    "live_api_contract_and_MCP_parity": "PASS",
+    "supabase_security_advisors": "No warnings or errors"
+  },
+  "publication_note": "The initial perennial inputs/scenarios were retired after supplementary VIA unit corrections. All perennial version IDs in this receipt refer to the corrected datasets.",
+  "scope_note": "Full model refitting, other NWS lead days, raw processing caches and paper binaries were not ingested. See BACKTESTS.md."
+}

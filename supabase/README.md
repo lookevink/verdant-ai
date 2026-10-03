@@ -38,6 +38,8 @@ The SQL suite is for this isolated local stack. It rolls back its fixtures. Do n
 
 ## Reproduce the handoff import
 
+The expanded production backtest import is documented in [BACKTESTS.md](BACKTESTS.md): seven perennial study families, the NWS day-two rain/frost decision cohorts, and all Ohio nitrogen policy variants, with clients that replay from public API responses.
+
 Install the pinned Python decoding dependencies from `scripts/data/requirements.txt` in an isolated environment. The preparation command performs no network/database writes and leaves the handoff unchanged. It verifies selected files against `FILES.jsonl`, source hashes against the normalized-input manifest, all irrigation totals, SILO grid/units, and the source-to-normalized shape. It writes SQL, an import receipt and expected values under ignored `.work/`.
 
 ```sh

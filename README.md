@@ -89,24 +89,31 @@ For paired previews, deploy the API preview first, then set the web preview's `A
 
 MPP is the HTTP payment protocol; Stripe handles the payment. The sandbox endpoint is `GET /api/v1/payments/probe`, priced at **$0.50 in test funds**. It verifies a Stripe SPT and queues a diagnostic job. It does not sell climate data. It returns 404 in live mode and 503 until credentials and a sandbox business profile are present.
 
-A dedicated, temporary Stripe sandbox has been created under CLI profile `verdant`; it expires **10 October 2026** unless claimed. Its temporary key has been copied into both test-mode environment profiles. The key cannot currently access the MPP business-profile API (HTTP 403). Claim it, log into the claimed sandbox, and create its Stripe business profile:
+A dedicated Stripe sandbox, `acct_1UMWhEERBvLA6kcm`, is configured under CLI profile `verdant`. On 3 October 2026, its temporary claimable key was replaced with an authorized sandbox CLI key in both local test-mode environment profiles. The CLI key expires on **1 January 2027**.
+
+The approved parent-account profile is **Verdant AI / `@verdant_ai`**, under `acct_1QWlcUDe3K7WSdzX` (ALIVE AND HEALTHY LLC). Stripe automatically created the sandbox profile `profile_test_61VVxfHx9KMi5gkIBA6VVxfHM1SQgBts4PNNPcAh6DmC`, with handle `verdant_ai_sandbox_69160`. Local profiles and Vercel development/preview payment settings are synced.
+
+**Verified locally on 3 October 2026:** HTTP 402 challenge, malformed-credential rejection, actual $0.50 Stripe sandbox payment (`pi_3UMZl5ERBvLA6kcm0Bn5LYQV`, `livemode=false`), HTTP 202, durable probe enqueue, and successful worker completion using the production test namespace. The pinned validator reports 15 passing checks and one discovery failure: it expects an MPP discovery document at `/openapi.json`, while the current climate API contract is served at `/api/v1/openapi.json` without the probe discovery metadata. Payment-flow success does not mean the full validator passes.
+
+**Production deployment remains pending:** the Vercel CLI identity `kevin-sendblue` has the `DEVELOPER` role on `lookevinks-projects`; Vercel denies production environment-variable writes. An owner or a role with production environment access must apply the four payment settings and redeploy. The approved production upload was attempted but did not succeed; the public API still uses its prior configuration.
+
+To refresh configuration, verify the CLI still targets the dedicated sandbox, then retrieve and distribute its `profile_test_` ID:
 
 ```sh
-stripe sandbox claim --project-name verdant
-stripe login --project-name verdant
+stripe whoami --project-name verdant
 pnpm stripe:sync
 pnpm vercel:sync
 ```
 
-`stripe:sync` reads only the Verdant CLI profile, retrieves the `profile_test_` ID, and updates both test-mode profiles without printing keys. If profile lookup is denied, complete Stripe account/profile setup first.
+`stripe:sync` reads only the Verdant CLI profile, retrieves the `profile_test_` ID, and updates both test-mode profiles without printing keys. Do not select the parent account or another sandbox during CLI login. If profile lookup returns 404, complete the parent profile setup first.
 
 To test on a deployed production URL, **keep server-side `PAYMENT_MODE=test` and sandbox Stripe credentials**, then run the pinned validator:
 
 ```sh
-pnpm --filter @verdant/api exec mppx validate https://YOUR-API/api/v1/payments/probe
+pnpm --filter @verdant/api exec mppx validate https://YOUR-API --endpoint GET:/api/v1/payments/probe
 ```
 
-Verify `/api/health` reports `paymentMode: test` first. This exercises HTTP 402 → test payment → receipt → queue → worker on deployed infrastructure. No client-controlled switch can enable sandbox mode. The sandbox probe is disabled in live mode. Do not run the validator against live payment endpoints without an explicit spending budget: the validator can move real funds.
+Verify `/api/health` reports `paymentMode: test` first. The validator exercises the payment endpoint; separately run the diagnostic worker and verify the returned job completes. Its discovery check still fails until the discovery route is implemented. No client-controlled switch can enable sandbox mode. The sandbox probe is disabled in live mode. Do not run the validator against live payment endpoints without an explicit spending budget: the validator can move real funds.
 
 Verified receipts and pgmq enqueueing commit together in Postgres; retrying the same credential recovers a saved receipt. There remains a crash window between Stripe settlement and saving the receipt. This test-only endpoint is **not** a production payment ledger or an exactly-once settlement guarantee. Durable reconciliation, quote binding, requester entitlements, refunds and a working acquisition handler are required before enabling paid data requests.
 
@@ -114,7 +121,7 @@ References: [Stripe MPP](https://docs.stripe.com/payments/machine/mpp), [Stripe 
 
 ## Current scope
 
-Implemented: the versioned read/query contract, generated OpenAPI, Mintlify monorepo documentation, direct JSON/CSV responses, read-only MCP, environment distribution, pgmq queue/leases/retries, authenticated diagnostic enqueue/status, worker polling for diagnostics, Stripe MPP sandbox probe code, and verification scripts. Live queue/Supabase checks work in both profiles, including API → queue → worker completion. Pi needs `ANTHROPIC_API_KEY` and `PI_MODEL`; the payment roundtrip needs a claimed Stripe sandbox and MPP business profile. These prerequisites are separate from hosting the public demo API.
+Implemented: the versioned read/query contract, generated OpenAPI, Mintlify monorepo documentation, direct JSON/CSV responses, read-only MCP, environment distribution, pgmq queue/leases/retries, authenticated diagnostic enqueue/status, worker polling for diagnostics, Stripe MPP sandbox probe code, and verification scripts. Live queue/Supabase checks work in both profiles, including API → queue → worker completion. Pi needs `ANTHROPIC_API_KEY` and `PI_MODEL`. The Stripe sandbox payment roundtrip is verified locally; its public deployment requires the Vercel production environment update described above.
 
 `POST /api/v1/data/requests` currently returns 503 and never charges or enqueues work. Climate schemas, handoff import, catalog/observation/raster APIs and transactional publication RPCs are implemented; see [database setup and verification](supabase/README.md). Pi execution, source acquisition, map rendering, backtests, quote lifecycle HTTP routes and paid data fulfillment are still pending.
 

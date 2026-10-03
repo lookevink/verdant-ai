@@ -1,0 +1,3 @@
+# Preparation only, matching the handoff's numerical serialization runtime.
+numpy==2.5.3
+pandas==3.0.6
