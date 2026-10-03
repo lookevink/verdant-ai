@@ -1,0 +1,22 @@
+{
+  "name": "verdant-ai",
+  "private": true,
+  "packageManager": "pnpm@11.24.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @verdant/web --filter @verdant/api dev",
+    "dev:web": "pnpm --filter @verdant/web dev",
+    "dev:api": "pnpm --filter @verdant/api dev",
+    "worker:check": "pnpm --filter @verdant/worker check",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.4",
+    "typescript": "7.0.2",
+    "tsx": "4.23.15"
+  }
+}

@@ -8,3 +8,6 @@ __pycache__/
 supabase/.temp/
 .work/
 *.log
+*.tsbuildinfo
+dist/
+.pnpm-store/

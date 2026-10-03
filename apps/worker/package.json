@@ -1,0 +1,15 @@
+{
+  "name": "@verdant/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "tsx src/index.ts --check",
+    "validate": "tsx src/index.ts --validate",
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@verdant/contracts": "workspace:*"
+  }
+}

@@ -10,7 +10,8 @@ Approved scope, 3 October 2026. This contract extends the five-hour demo plan. T
 - Read-only remote SQL inspection found no application tables and no installed PostGIS or PostGIS Raster extension. Do not assume the historical local backtests are in this hosted database. Import selected evidence deliberately.
 - Raster storage: externally decoded float arrays plus grid metadata, served by an API and rendered in the browser. Native raster import is not required.
 - Worker runtime: Pi coding agent using the Anthropic Claude API. User will supply the API key. Pi is installed locally as `@earendil-works/pi-coding-agent`; its installed documentation provides SDK sessions, RPC, typed tools and event subscriptions.
-- These are verified inventory facts and approved choices, not a claim that acquisition, MPP, or rendering has been implemented.
+- Monorepo boundaries: `apps/web` and `apps/api` are separate Next.js applications. `apps/worker` is a persistent Node.js/Pi service on the target machine. Shared request schemas live in `packages/contracts`. The worker uses outbound authenticated API calls; no inbound worker port is required. The API retains database publication/payment credentials.
+- These are verified inventory facts and approved choices, not a claim that acquisition, MPP, or rendering has been implemented. See README.md for current implementation status.
 
 ## What an agent requests
 
