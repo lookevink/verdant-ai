@@ -21,6 +21,7 @@ const errors: Record<string, string> = {
   session_closed: "This session has ended. Start a new one.", access_code_required: "Enter the playground access code.", voice_unavailable: "Voice isn't configured on this server.",
   invalid_ticket: "The voice connection expired. Try again.", vertex_unavailable: "The voice service is unavailable right now.", relay_busy: "Voice is busy right now. Try again shortly.",
   session_time_limit: "Voice sessions last up to 30 minutes. Turn voice on again to continue.",
+  connection_failed: "Couldn't reach Sprout's voice from this network. Check your connection and try again, or keep typing.",
 };
 const explain = (error: unknown) => errors[error instanceof PlaygroundError ? error.code : String(error)] ?? "Verdant is unavailable right now. Try again shortly.";
 const seconds = (ms?: number) => ms === undefined ? "" : ms < 60_000 ? `${Math.round(ms / 1000)} s` : `${Math.floor(ms / 60_000)} min ${Math.round(ms % 60_000 / 1000)} s`;

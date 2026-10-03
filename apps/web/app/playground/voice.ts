@@ -69,9 +69,11 @@ export class VoiceClient {
 
     const socket = new WebSocket(ticket.url);
     this.socket = socket;
-    socket.onopen = () => socket.send(JSON.stringify({ type: "hello", ticket: ticket.ticket }));
+    let opened = false;
+    socket.onopen = () => { opened = true; socket.send(JSON.stringify({ type: "hello", ticket: ticket.ticket })); };
     socket.onmessage = event => this.receive(JSON.parse(String(event.data)));
-    socket.onclose = event => { this.stop(); this.handlers.state("closed", event.reason || undefined); };
+    // A socket that never opened was blocked or unreachable; say so instead of quietly switching voice off.
+    socket.onclose = event => { this.stop(); this.handlers.state("closed", event.reason || (opened ? undefined : "connection_failed")); };
     this.animate();
   }
 
