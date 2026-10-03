@@ -14,6 +14,23 @@
   color-scheme: light;
 }
 
+/* Time of day: the inline phase script sets data-phase on <html> before first paint. Registered colours let
+   the hero crossfade smoothly when a visitor changes the sky. */
+@property --sun-x { syntax: "<percentage>"; inherits: true; initial-value: 77% }
+@property --sun-y { syntax: "<percentage>"; inherits: true; initial-value: 11% }
+@property --sun-core { syntax: "<color>"; inherits: true; initial-value: rgba(255, 248, 205, .95) }
+@property --sun-glow { syntax: "<color>"; inherits: true; initial-value: rgba(255, 230, 138, .5) }
+@property --cloud { syntax: "<color>"; inherits: true; initial-value: #fff }
+@property --hero-ink { syntax: "<color>"; inherits: true; initial-value: #072a1a }
+@property --hero-ink-2 { syntax: "<color>"; inherits: true; initial-value: #3d5c48 }
+@property --hero-accent { syntax: "<color>"; inherits: true; initial-value: #12813a }
+@property --hero-halo { syntax: "<color>"; inherits: true; initial-value: #f4f8dc }
+@property --veil { syntax: "<color>"; inherits: true; initial-value: rgba(251, 254, 246, .6) }
+:root { --sun-o: 1; --rays: 0; --cloud-alpha: .85; --fg: #04301b; transition: --sun-x 2.4s var(--ease), --sun-y 2.4s var(--ease), --sun-core 1.6s, --sun-glow 1.6s, --cloud 1.6s, --hero-ink .9s, --hero-ink-2 .9s, --hero-accent .9s, --hero-halo .9s, --veil .9s }
+:root[data-phase="dawn"] { --sun-x: 14%; --sun-y: 54%; --sun-core: rgba(255, 238, 220, .95); --sun-glow: rgba(255, 168, 150, .45); --cloud: #ffe4de; --hero-halo: #f8e6df; --rays: .45; --fg: #1d2a24 }
+:root[data-phase="golden"] { --sun-x: 84%; --sun-y: 50%; --sun-core: rgba(255, 238, 170, 1); --sun-glow: rgba(255, 160, 70, .55); --cloud: #ffe3b8; --hero-halo: #fbe9c4; --rays: .7; --fg: #142a0e }
+:root[data-phase="dusk"] { --sun-o: 0; --cloud: #7f97a6; --cloud-alpha: .3; --fg: #020e09; --hero-ink: #eef7e6; --hero-ink-2: rgba(238, 247, 230, .8); --hero-accent: #c6f36b; --hero-halo: rgba(4, 22, 30, .75); --veil: rgba(3, 30, 25, .45) }
+
 * { box-sizing: border-box }
 html { scroll-behavior: smooth; -webkit-text-size-adjust: 100% }
 body { margin: 0; background: var(--dew); color: var(--ink); font-family: var(--sans); -webkit-font-smoothing: antialiased; overflow-x: clip }
@@ -31,7 +48,7 @@ section { scroll-margin-top: 24px }
 .arrow { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; transition: transform .5s var(--ease) }
 .button { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 52px; padding: 0 24px; border: 0; border-radius: 999px; background: var(--moss); color: var(--lime); font: 600 15px/1 var(--sans); cursor: pointer; overflow: hidden; isolation: isolate; transition: color .5s var(--ease), transform .5s var(--ease), box-shadow .5s var(--ease) }
 .button::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; background: var(--lime); transform: translateY(101%); transition: transform .55s var(--ease) }
-.button.ghost { background: rgba(251, 254, 246, .6); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line); backdrop-filter: blur(8px) }
+.button.ghost { background: var(--veil); color: var(--hero-ink); box-shadow: inset 0 0 0 1px var(--line); backdrop-filter: blur(8px) }
 .button.ghost::before { background: var(--white) }
 @media (hover: hover) {
   .button:hover { color: var(--moss); transform: translateY(-2px); box-shadow: 0 14px 30px -14px rgba(6, 63, 37, .55) }
@@ -52,47 +69,74 @@ section { scroll-margin-top: 24px }
 .nav-links a { padding: 10px 14px; border-radius: 999px; font-size: 14px; font-weight: 500; color: var(--ink-2); transition: background .3s, color .3s }
 .nav-links a:hover { background: rgba(6, 63, 37, .07); color: var(--ink) }
 .nav-cta { display: inline-flex; align-items: center; gap: 8px; padding: 11px 18px; border-radius: 999px; background: var(--moss); color: var(--lime); font-size: 14px; font-weight: 600 }
+:root[data-phase="dusk"] .nav { background: rgba(4, 28, 24, .72); box-shadow: 0 0 0 1px rgba(243, 250, 234, .1), 0 12px 40px -20px rgba(0, 0, 0, .6); color: var(--dew) }
+:root[data-phase="dusk"] .nav-links a { color: rgba(243, 250, 234, .72) }
+:root[data-phase="dusk"] .nav-links a:hover { background: rgba(243, 250, 234, .08); color: var(--dew) }
+:root[data-phase="dusk"] .nav-cta, :root[data-phase="dusk"] .hero .button:not(.ghost) { background: var(--lime); color: var(--moss) }
+:root[data-phase="dusk"] .hero .button:not(.ghost)::before { background: var(--white) }
+:root[data-phase="dusk"] .brand span { color: var(--lime) }
+:root[data-phase="dusk"] .mark-stem { stroke: var(--lime) }
 
 /* Hero: sky, sun and a living meadow. */
 .hero { --horizon: 58%; position: relative; display: flex; flex-direction: column; min-height: max(640px, 100svh); overflow: hidden; background: linear-gradient(180deg, var(--sky) 0%, #e6f5e6 34%, var(--haze) 58%, #e2f1c4 100%) }
-.sun { position: absolute; top: -32vmax; right: -16vmax; width: 78vmax; aspect-ratio: 1; border-radius: 50%; pointer-events: none; background: radial-gradient(circle, rgba(255, 248, 205, .95) 0%, rgba(255, 230, 138, .5) 26%, rgba(255, 230, 138, 0) 62%); animation: breathe 10s ease-in-out infinite alternate }
-.hero-copy { position: relative; z-index: 2; width: 100%; max-width: calc(var(--max) + 2 * var(--gutter)); margin: 0 auto; padding: clamp(108px, 17svh, 176px) var(--gutter) 0 }
-.chip { display: inline-flex; align-items: center; gap: 10px; padding: 7px 14px 7px 10px; border-radius: 999px; background: rgba(251, 254, 246, .6); box-shadow: inset 0 0 0 1px rgba(6, 63, 37, .08); backdrop-filter: blur(8px); font-size: 13px; font-weight: 500; color: var(--ink-2); animation: rise .9s .1s var(--ease) both }
+.washes, .wash, .rays, .rays::before { position: absolute; inset: 0; pointer-events: none }
+.wash { opacity: 0; transition: opacity 1.6s ease }
+.wash.dawn { background: linear-gradient(180deg, #b8c9e4 0%, #e3d3e6 28%, #ffd6c4 50%, #fde6cc 58%, #e5ecc9 100%) }
+.wash.golden { background: linear-gradient(180deg, #8fbcd4 0%, #e8d6a8 30%, #ffc77a 50%, #ffdba0 58%, #ead79c 100%) }
+.wash.dusk { background: radial-gradient(55% 22% at 18% 58%, rgba(255, 140, 110, .22), transparent 70%), linear-gradient(180deg, #06162a 0%, #0c2a3d 38%, #1b4651 54%, #2a5b55 58%, #143a2c 100%) }
+:root[data-phase="dawn"] .wash.dawn, :root[data-phase="golden"] .wash.golden, :root[data-phase="dusk"] .wash.dusk { opacity: 1 }
+.stars { position: absolute; left: 0; top: 0; width: 1px; height: 1px; border-radius: 50%; opacity: 0; transition: opacity 2s }
+:root[data-phase="dusk"] .stars { opacity: 1; animation: twinkle 3.4s ease-in-out infinite alternate }
+:root[data-phase="dusk"] .stars + .stars { animation-duration: 4.6s; animation-delay: -2s }
+.moon { position: absolute; right: 16%; top: 13%; width: clamp(36px, 4vw, 60px); aspect-ratio: 1; border-radius: 50%; opacity: 0; transform: translateY(30px); background: radial-gradient(circle at 38% 36%, #fbfdf3, #e4ecdc 55%, #c7d5c7); box-shadow: 0 0 40px 10px rgba(220, 240, 225, .18), 0 0 120px 40px rgba(180, 220, 210, .1); transition: opacity 1.6s, transform 2.4s var(--ease) }
+:root[data-phase="dusk"] .moon { opacity: 1; transform: none }
+.rays { opacity: var(--rays); transition: opacity 1.6s }
+.rays::before { content: ""; filter: blur(3px); background: repeating-conic-gradient(from 0deg at var(--sun-x) var(--sun-y), rgba(255, 236, 190, 0) 0deg 5deg, rgba(255, 236, 190, .22) 6.5deg 8deg, rgba(255, 236, 190, 0) 9.5deg 14deg); -webkit-mask: radial-gradient(circle at var(--sun-x) var(--sun-y), #000, transparent 55%); mask: radial-gradient(circle at var(--sun-x) var(--sun-y), #000, transparent 55%); animation: beams 7s ease-in-out infinite alternate }
+.sun { position: absolute; left: var(--sun-x); top: var(--sun-y); width: 78vmax; aspect-ratio: 1; translate: -50% -50%; border-radius: 50%; pointer-events: none; opacity: var(--sun-o); background: radial-gradient(circle, var(--sun-core) 0%, var(--sun-glow) 26%, transparent 62%); transition: opacity 1.6s; animation: breathe 10s ease-in-out infinite alternate }
+.hero-copy { position: relative; z-index: 2; color: var(--hero-ink); width: 100%; max-width: calc(var(--max) + 2 * var(--gutter)); margin: 0 auto; padding: clamp(108px, 17svh, 176px) var(--gutter) 0 }
+.chip { display: inline-flex; align-items: center; gap: 10px; padding: 7px 14px 7px 10px; border-radius: 999px; background: var(--veil); box-shadow: inset 0 0 0 1px rgba(6, 63, 37, .08); backdrop-filter: blur(8px); font-size: 13px; font-weight: 500; color: var(--hero-ink-2); animation: rise .9s .1s var(--ease) both }
 .pulse { position: relative; width: 8px; height: 8px; border-radius: 50%; background: var(--verdant) }
 .pulse::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: inherit; animation: ping 2.4s var(--ease) infinite }
 h1 { margin-top: 26px; font-size: clamp(44px, 6.8vw, 108px); font-weight: 600; line-height: .96; letter-spacing: -.05em }
 h1 .line { position: relative; display: block; width: fit-content }
-h1 .serif { font-size: 1.08em; line-height: .92; color: var(--fern); letter-spacing: -.025em }
+h1 .serif { font-size: 1.08em; line-height: .92; color: var(--hero-accent); letter-spacing: -.025em }
 .h-word { display: inline-block; overflow: hidden; vertical-align: top; padding: 0 .02em .1em; margin-bottom: -.1em }
 .h-word > span { display: inline-block; animation: word .95s var(--ease) both; animation-delay: calc(var(--i) * 65ms + 150ms) }
 .underlined { position: relative; display: inline-block }
 .serif .h-word { padding-right: .12em; margin-right: -.12em }
 .swash { position: absolute; left: 0; bottom: -.04em; width: 100%; height: .22em; overflow: visible; fill: none; stroke: var(--lime); stroke-width: 7; stroke-linecap: round; z-index: -1; stroke-dasharray: 420; animation: draw-long 1.2s 1.05s var(--ease) both }
 .hero-row { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 24px 48px; margin-top: clamp(24px, 4svh, 40px) }
-.lede { max-width: 470px; font-size: clamp(16px, 1.3vw, 19px); line-height: 1.55; color: var(--ink-2); text-shadow: 0 0 18px var(--haze), 0 0 4px rgba(244, 248, 220, .8); animation: rise 1s .6s var(--ease) both }
+.lede { max-width: 470px; font-size: clamp(16px, 1.3vw, 19px); line-height: 1.55; color: var(--hero-ink-2); text-shadow: 0 0 18px var(--hero-halo), 0 0 4px var(--hero-halo); animation: rise 1s .6s var(--ease) both }
 .actions { display: flex; flex-wrap: wrap; gap: 12px; animation: rise 1s .72s var(--ease) both }
 .sky { position: absolute; inset: 0 0 auto; height: var(--horizon); overflow: hidden; pointer-events: none }
-.cloud { position: absolute; left: 0; top: var(--y); width: calc(26vw * var(--s)); aspect-ratio: 4; opacity: .85; filter: blur(3px); background: radial-gradient(42% 58% at 28% 62%, rgba(255, 255, 255, .95) 30%, rgba(255, 255, 255, 0) 72%), radial-gradient(34% 70% at 55% 42%, rgba(255, 255, 255, .95) 32%, rgba(255, 255, 255, 0) 72%), radial-gradient(30% 54% at 80% 64%, rgba(255, 255, 255, .9) 28%, rgba(255, 255, 255, 0) 70%); animation: cloud var(--t) linear infinite; animation-delay: var(--d) }
-.flock { position: absolute; left: 0; top: 0; animation: migrate 64s linear infinite; animation-delay: -8s }
+.cloud { position: absolute; left: 0; top: var(--y); width: calc(26vw * var(--s)); aspect-ratio: 4; opacity: var(--cloud-alpha); filter: blur(3px); transition: opacity 1.6s; background: radial-gradient(42% 58% at 28% 62%, var(--cloud) 30%, transparent 72%), radial-gradient(34% 70% at 55% 42%, var(--cloud) 32%, transparent 72%), radial-gradient(30% 54% at 80% 64%, var(--cloud) 28%, transparent 70%); animation: cloud var(--t) linear infinite; animation-delay: var(--d) }
+.flock { position: absolute; left: 0; top: 0; transition: opacity 1.6s; animation: migrate 64s linear infinite; animation-delay: -8s }
+:root[data-phase="dusk"] .flock { opacity: 0 }
 .bird { position: absolute; left: var(--x); top: var(--y); width: 14px; height: 6px; overflow: visible; fill: none; stroke: rgba(7, 42, 26, .5); stroke-width: 1.6; stroke-linecap: round; animation: flap .42s ease-in-out infinite alternate; animation-delay: calc(var(--i) * -.13s) }
 .ground { position: absolute; inset: var(--horizon) 0 0; background: linear-gradient(180deg, #b9dab6, #8cc589 12%, #3f8f4f 35%, #145a30 65%, var(--moss)) }
+:root[data-phase="dusk"] .ground { filter: brightness(.4) saturate(.7) }
 .field { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; transition: opacity .5s }
 .field[data-ready] { opacity: 1 }
-.foreground { position: absolute; z-index: 1; bottom: -14px; width: 34%; height: 50%; fill: #04301b; filter: blur(5px); pointer-events: none; transform-origin: 0 100%; animation: rock 7s ease-in-out infinite alternate }
+.foreground { position: absolute; z-index: 1; bottom: -14px; width: 34%; height: 50%; fill: var(--fg); filter: blur(5px); transition: fill 1.6s; pointer-events: none; transform-origin: 0 100%; animation: rock 7s ease-in-out infinite alternate }
 .foreground.left { left: 0 }
 .foreground.right { right: 0; transform-origin: 100% 100%; animation-duration: 8.5s; animation-delay: -3s }
 .hero::after { content: ""; position: absolute; inset: auto 0 0; height: 160px; z-index: 1; pointer-events: none; background: linear-gradient(180deg, rgba(6, 63, 37, 0), var(--moss)) }
 .hero-foot { position: absolute; z-index: 3; left: 0; right: 0; bottom: 22px; display: flex; justify-content: space-between; max-width: calc(var(--max) + 2 * var(--gutter)); margin: auto; padding: 0 var(--gutter); font: 500 11px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: rgba(243, 250, 234, .78); animation: rise 1s 1.3s var(--ease) both }
 .scroll-cue, .foot-end { display: flex; align-items: center; gap: 12px }
-.foot-end { gap: 20px }
-.sound { display: inline-flex; align-items: center; gap: 10px; padding: 9px 13px; border: 0; border-radius: 999px; background: rgba(3, 38, 25, .4); box-shadow: inset 0 0 0 1px rgba(243, 250, 234, .2); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer; transition: background .3s }
-.sound:hover { background: rgba(3, 38, 25, .6) }
+.foot-end { gap: 10px }
+.coords { margin-right: 10px }
+.hint { align-self: center; opacity: .75; transition: opacity .8s }
+.hint::before { content: "✦"; margin-right: 8px; color: var(--lime) }
+.hero[data-touched] .hint { opacity: 0 }
+.pill { display: inline-flex; align-items: center; gap: 10px; padding: 9px 13px; border: 0; border-radius: 999px; background: rgba(3, 38, 25, .4); box-shadow: inset 0 0 0 1px rgba(243, 250, 234, .2); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer; transition: background .3s }
+.pill:hover { background: rgba(3, 38, 25, .6) }
+.sky-icon { width: 14px; height: 14px; fill: none; stroke: var(--lime); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round }
 .bars { display: flex; align-items: flex-end; gap: 2px; height: 12px }
 .bars i { width: 2px; height: 30%; border-radius: 1px; background: var(--lime); transition: height .3s }
-.sound[aria-pressed="true"] .bars i { animation: eq .8s ease-in-out infinite alternate }
-.sound[aria-pressed="true"] .bars i:nth-child(2) { animation-delay: -.3s }
-.sound[aria-pressed="true"] .bars i:nth-child(3) { animation-delay: -.55s }
-.sound[aria-pressed="true"] .bars i:nth-child(4) { animation-delay: -.15s }
+.pill[aria-pressed="true"] .bars i { animation: eq .8s ease-in-out infinite alternate }
+.pill[aria-pressed="true"] .bars i:nth-child(2) { animation-delay: -.3s }
+.pill[aria-pressed="true"] .bars i:nth-child(3) { animation-delay: -.55s }
+.pill[aria-pressed="true"] .bars i:nth-child(4) { animation-delay: -.15s }
 .scroll-cue i { position: relative; width: 1px; height: 34px; overflow: hidden; background: rgba(243, 250, 234, .25) }
 .scroll-cue i::after { content: ""; position: absolute; inset: 0; background: var(--lime); animation: trickle 2s var(--ease) infinite }
 
@@ -128,6 +172,7 @@ h1 .serif { font-size: 1.08em; line-height: .92; color: var(--fern); letter-spac
 
 /* 02 · How it works */
 .how, .request { padding: clamp(96px, 13vw, 192px) var(--gutter) }
+.build { padding: 0 var(--gutter) clamp(72px, 9vw, 128px) }
 .section-head { display: grid; grid-template-columns: 1.4fr 1fr; align-items: end; gap: 32px 64px; max-width: var(--max); margin: 0 auto clamp(48px, 6vw, 80px) }
 .section-head > p { max-width: 42ch; font-size: 17px; line-height: 1.6; color: var(--ink-2) }
 h2 { margin-top: 22px; font-size: clamp(40px, 5.6vw, 88px); font-weight: 600; line-height: .98; letter-spacing: -.045em }
@@ -197,10 +242,27 @@ input[readonly] { color: var(--ink-2) }
 pre { margin: 0; padding: 16px; max-height: 280px; overflow: auto; font: 12px/1.6 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere }
 pre span { animation: type .35s var(--ease) both; animation-delay: calc(var(--i) * 28ms) }
 
+/* 05 · Docs */
+.guides { list-style: none; display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; max-width: var(--max); margin: 0 auto; padding: 0 }
+.guides a { position: relative; display: flex; flex-direction: column; gap: 14px; height: 100%; min-height: 290px; padding: 26px 24px; border-radius: 24px; background: var(--white); box-shadow: 0 0 0 1px rgba(6, 63, 37, .08); overflow: hidden; isolation: isolate; transition: transform .5s var(--ease), box-shadow .5s var(--ease) }
+.guides a::before { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, var(--lime), #8fdc5c); transform: translateY(101%); transition: transform .6s var(--ease) }
+.guide-tag { align-self: flex-start; padding: 6px 10px; border-radius: 999px; box-shadow: inset 0 0 0 1px var(--line); font: 500 11px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2) }
+.guides h3 { margin-top: auto; font-size: clamp(24px, 2.2vw, 32px); font-weight: 600; line-height: 1.05; letter-spacing: -.035em }
+.guides p { font-size: 15px; line-height: 1.55; color: var(--ink-2); transition: color .4s }
+.guides code { align-self: flex-start; max-width: 100%; padding: 6px 9px; border-radius: 8px; background: var(--meadow); font: 12px/1.3 var(--mono); color: var(--fern); overflow-wrap: anywhere }
+.guide-go { position: absolute; top: 22px; right: 24px; font-size: 20px; color: var(--fern); transition: transform .5s var(--ease) }
+@media (hover: hover) {
+  .guides a:hover { transform: translateY(-6px); box-shadow: 0 30px 60px -30px rgba(6, 63, 37, .45), 0 0 0 1px rgba(6, 63, 37, .08) }
+  .guides a:hover::before { transform: none }
+  .guides a:hover p { color: var(--moss) }
+  .guides a:hover .guide-go { transform: translate(4px, -4px) }
+}
+
 /* Footer */
 .site-footer { position: relative; margin-top: 64px; padding: 56px var(--gutter) 0; background: var(--soil); color: rgba(243, 250, 234, .65); overflow-x: clip }
 .footer-row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px 32px; max-width: var(--max); margin: auto; font: 500 12px/1.5 var(--mono); letter-spacing: .06em }
 .footer-row a { color: var(--lime) }
+.footer-links { display: flex; flex-wrap: wrap; gap: 8px 20px }
 .wordmark { display: flex; justify-content: center; margin: clamp(32px, 6vw, 72px) auto 0; overflow: hidden; font-size: clamp(96px, 25vw, 420px); font-weight: 700; line-height: .95; letter-spacing: -.07em; user-select: none }
 .wordmark span { display: inline-block; padding: 0 .015em; background: linear-gradient(180deg, var(--lime) 8%, var(--leaf) 46%, var(--shade) 92%); -webkit-background-clip: text; background-clip: text; color: transparent }
 
@@ -223,6 +285,7 @@ pre span { animation: type .35s var(--ease) both; animation-delay: calc(var(--i)
   .giant span { animation: from-left linear both; animation-timeline: view(); animation-range: entry 20% cover 45% }
   .giant em { animation: from-right linear both; animation-timeline: view(); animation-range: entry 20% cover 45% }
   .nevers s::after { animation: strike linear both; animation-timeline: view(); animation-range: entry calc(60% + var(--i) * 10%) cover calc(42% + var(--i) * 5%) }
+  .guides li { animation: rise linear both; animation-timeline: view(); animation-range: entry calc(var(--i) * 6%) entry calc(70% + var(--i) * 6%) }
   .facets div { animation: rise linear both; animation-timeline: view(); animation-range: entry calc(var(--i) * 5%) entry calc(70% + var(--i) * 5%) }
   .workspace { animation: grow linear both; animation-timeline: view(); animation-range: entry 0% entry 80% }
   .wordmark span { animation: sprout linear both; animation-timeline: view(); animation-range: entry calc(var(--i) * 6%) entry calc(60% + var(--i) * 6%) }
@@ -246,6 +309,8 @@ pre span { animation: type .35s var(--ease) both; animation-delay: calc(var(--i)
 @keyframes flap { to { transform: scaleY(-.6) } }
 @keyframes rock { from { rotate: -1.5deg } to { rotate: 2deg } }
 @keyframes approach { to { scale: 1.8; translate: 0 4% } }
+@keyframes twinkle { from { opacity: .35 } }
+@keyframes beams { to { opacity: .6 } }
 @keyframes eq { from { height: 25% } to { height: 100% } }
 @keyframes lit { from { color: rgba(243, 250, 234, .14) } }
 @keyframes scatter { from { transform: translateY(45vh) scale(.9); opacity: 0 } 15% { opacity: .9 } 60% { opacity: .55 } to { transform: translateY(-50vh) rotate(calc(var(--i) * 9deg - 50deg)) scale(.8); opacity: 0 } }
@@ -277,6 +342,8 @@ pre span { animation: type .35s var(--ease) both; animation-delay: calc(var(--i)
   .status { justify-self: start }
   .facets { grid-template-columns: 1fr 1fr }
   .workspace { grid-template-columns: 1fr }
+  .guides { grid-template-columns: 1fr 1fr }
+  .hint { display: none }
 }
 @media (max-width: 560px) {
   .nav { padding-left: 12px }
@@ -286,7 +353,10 @@ pre span { animation: type .35s var(--ease) both; animation-delay: calc(var(--i)
   .foreground { display: none }
   .actions { width: 100% }
   .actions .button { flex: 1 1 auto; white-space: nowrap }
-  .coords { display: none }
+  .coords, .pill-label { display: none }
+  .moon { top: 9%; right: 4% }
+  .guides { grid-template-columns: 1fr }
+  .guides a { min-height: 0 }
   .fields { grid-template-columns: 1fr }
   .facets { grid-template-columns: 1fr }
 }

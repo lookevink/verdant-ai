@@ -1,6 +1,8 @@
 import { Fragment, type CSSProperties } from "react";
 import { exampleRequest } from "@verdant/contracts";
-import { Field, SoundToggle } from "./field";
+import { Field } from "./field";
+import { SkyToggle } from "./sky";
+import { SoundToggle } from "./sound";
 import { RequestForm } from "./request-form";
 
 const vars = (values: Record<string, string | number>) => values as CSSProperties;
@@ -23,8 +25,23 @@ const facets = [
 const nevers = ["Missing values → zero", "Coarse pixel → fine measurement", "Undocumented interpolation"];
 const clouds = [{ y: "6%", s: 1.25, t: "150s", d: "-40s", x: "6vw" }, { y: "19%", s: 0.8, t: "115s", d: "-95s", x: "62vw" }, { y: "2%", s: 0.95, t: "180s", d: "-150s", x: "84vw" }, { y: "30%", s: 0.55, t: "100s", d: "-12s", x: "38vw" }];
 
+const docs = "https://docs.verdant-ai.com";
+const guides = [
+  { title: "Quickstart", text: "Discover coverage and get real values directly in an HTTP response.", href: `${docs}/quickstart`, tag: "5 min" },
+  { title: "Connect an agent", text: "Add the Verdant MCP server to any client that supports remote MCP.", href: `${docs}/agents/mcp`, tag: "MCP", code: "https://api.verdant-ai.com/mcp" },
+  { title: "The data contract", text: "Units, spatial support, missingness and the guarantees behind every response.", href: `${docs}/concepts/data-contract`, tag: "Concepts" },
+  { title: "API reference", text: "Every endpoint, generated from the same runtime schemas the API validates with.", href: `${docs}/api-reference/discovery/discover-capabilities`, tag: "OpenAPI 3.1" },
+];
+
 function seeded(seed: number) {
   return () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+}
+
+// Two layers of stars twinkle out of phase; they only show once the sky reaches dusk.
+function Stars() {
+  const random = seeded(23);
+  return [0, 1].map(layer => <i key={layer} className="stars" style={{ boxShadow: Array.from({ length: 45 }, () =>
+    `${(random() * 100).toFixed(1)}vw ${(random() * 52).toFixed(1)}svh 0 ${random() < 0.15 ? 1 : 0}px rgba(255,255,240,${(0.35 + random() * 0.6).toFixed(2)})`).join() }} />);
 }
 
 function Words({ text, from = 0 }: { text: string; from?: number }) {
@@ -90,12 +107,13 @@ export default function Page() {
   return <>
     <nav className="nav" aria-label="Primary">
       <a className="brand" href="#top"><Mark />verdant<span> AI</span></a>
-      <div className="nav-links"><a href="#how">How it works</a><a href="#evidence">Evidence</a><a href="/api/v1/openapi.json">API contract</a></div>
+      <div className="nav-links"><a href="#how">How it works</a><a href="#evidence">Evidence</a><a href="/api/v1/openapi.json">API contract</a><a href={docs}>Docs <span aria-hidden="true">↗</span></a></div>
       <a className="nav-cta" href="#request">Query data <Arrow /></a>
     </nav>
 
     <main>
       <section className="hero" id="top">
+        <div className="washes" aria-hidden="true"><i className="wash dawn" /><i className="wash golden" /><i className="wash dusk" /><Stars /><i className="moon" /><i className="rays" /></div>
         <div className="sun" aria-hidden="true" />
         <div className="hero-copy">
           <p className="chip"><span className="pulse" />Developer preview · Climate data, ready to use</p>
@@ -103,7 +121,7 @@ export default function Page() {
             <span className="line serif"><Words text="Give it" from={5} />{" "}<span className="underlined"><Words text="better data." from={7} /><svg className="swash" viewBox="0 0 400 24" preserveAspectRatio="none" aria-hidden="true"><path d="M4 18C80 6 170 4 250 9s110 6 146 1" /></svg></span></span></h1>
           <div className="hero-row">
             <p className="lede">Specify the place, period and format. Verdant is being built to retrieve, normalize and deliver climate data with its evidence intact.</p>
-            <div className="actions"><a className="button" href="#request">Query real data <Arrow /></a><a className="button ghost" href="#how">How it works</a></div>
+            <div className="actions"><a className="button" href="#request">Query real data <Arrow /></a><a className="button ghost" href={docs}>Read the docs <span aria-hidden="true">↗</span></a></div>
           </div>
         </div>
         <div className="sky" aria-hidden="true">
@@ -113,7 +131,7 @@ export default function Page() {
         <div className="ground" aria-hidden="true" />
         <Field />
         <Foreground />
-        <div className="hero-foot"><span className="scroll-cue"><i />Scroll</span><span className="foot-end"><span className="coords">Mildura, AU · 34.42°S 142.35°E</span><SoundToggle /></span></div>
+        <div className="hero-foot"><span className="scroll-cue"><i />Scroll</span><span className="hint">Touch the meadow</span><span className="foot-end"><span className="coords">Mildura, AU · 34.42°S 142.35°E</span><SkyToggle /><SoundToggle /></span></div>
       </section>
 
       <section className="manifesto" aria-labelledby="problem">
@@ -181,6 +199,22 @@ export default function Page() {
           <RequestForm exampleRequest={exampleRequest} />
         </div>
       </section>
+
+      <section className="build" id="docs">
+        <div className="section-head">
+          <div><p className="eyebrow"><b>05</b>Build with Verdant</p><h2>Read the docs. <em>Ship the query.</em></h2></div>
+          <p>Public demo reads are free and need no API key. Start over HTTP, or hand your agent the MCP server and let it discover what exists.</p>
+        </div>
+        <ul className="guides">
+          {guides.map((guide, i) => <li key={guide.title} style={vars({ "--i": i })}><a href={guide.href}>
+            <span className="guide-tag">{guide.tag}</span>
+            {guide.code && <code>{guide.code}</code>}
+            <h3>{guide.title}</h3>
+            <p>{guide.text}</p>
+            <span className="guide-go" aria-hidden="true">↗</span>
+          </a></li>)}
+        </ul>
+      </section>
     </main>
 
     <footer className="site-footer">
@@ -188,7 +222,7 @@ export default function Page() {
       <div className="footer-row">
         <p>{stages.join(" → ")}</p>
         <p>Live demo data · acquisition and purchases in development</p>
-        <a href="#top">Back to top ↑</a>
+        <nav className="footer-links" aria-label="Footer"><a href={docs}>Docs</a><a href={`${docs}/llms.txt`}>llms.txt</a><a href="/api/v1/openapi.json">OpenAPI</a><a href="#top">Back to top ↑</a></nav>
       </div>
       <p className="wordmark" aria-hidden="true">{[..."verdant"].map((letter, i) => <span key={i} style={vars({ "--i": i })}>{letter}</span>)}</p>
     </footer>

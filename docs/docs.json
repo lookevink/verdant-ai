@@ -2,7 +2,9 @@
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
   "name": "Verdant",
-  "colors": { "primary": "#235C3F", "light": "#4C8B61", "dark": "#6FAD82" },
+  "colors": { "primary": "#12813A", "light": "#7FD85A", "dark": "#0B5E31" },
+  "logo": { "light": "/logo/light.svg", "dark": "/logo/dark.svg", "href": "https://verdant-ai.com" },
+  "favicon": "/favicon.svg",
   "navigation": {
     "tabs": [
       { "tab": "Guides", "groups": [

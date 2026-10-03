@@ -10,8 +10,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@earendil-works/pi-ai": "1.0.0",
+    "@earendil-works/pi-coding-agent": "1.0.0",
     "@supabase/supabase-js": "2.117.2",
     "@verdant/contracts": "workspace:*",
-    "@verdant/queue": "workspace:*"
+    "@verdant/queue": "workspace:*",
+    "geotiff": "3.0.5"
   }
 }
