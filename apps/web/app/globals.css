@@ -121,6 +121,16 @@ h1 .serif { font-size: 1.08em; line-height: .92; color: var(--hero-accent); lett
 .foreground.left { left: 0 }
 .foreground.right { right: 0; transform-origin: 100% 100%; animation-duration: 8.5s; animation-delay: -3s }
 .hero::after { content: ""; position: absolute; inset: auto 0 0; height: 160px; z-index: 1; pointer-events: none; background: linear-gradient(180deg, rgba(6, 63, 37, 0), var(--moss)) }
+/* Sprout, the playground's analyst, grows out of the meadow and links to it. */
+.meadow-sprout { position: absolute; z-index: 2; right: 23%; bottom: 58px; display: flex; flex-direction: column; align-items: center; animation: peek 1.1s 2.2s var(--ease) both }
+.meadow-sprout .sprout { -webkit-mask: linear-gradient(#000 70%, transparent 95%); mask: linear-gradient(#000 70%, transparent 95%) }
+.meadow-sprout .sprout-soil, .meadow-sprout .sprout-shadow { display: none }
+.meadow-bubble { margin-bottom: 2px; padding: 8px 12px; border-radius: 14px; background: rgba(251, 254, 246, .92); box-shadow: 0 10px 26px -12px rgba(3, 30, 20, .55); font-size: 13px; font-weight: 600; color: var(--moss); white-space: nowrap; animation: rise .6s 3.1s var(--ease) both; transition: transform .4s var(--ease) }
+@media (hover: hover) {
+  .meadow-sprout:hover .meadow-bubble { transform: translateY(-3px) scale(1.05) }
+  .meadow-sprout:hover .sprout-leaf-l, .ask-card:has(.ask-form:focus-within, .ask-chips a:hover) .sprout-leaf-l { transform: rotate(-16deg) }
+  .meadow-sprout:hover .sprout-leaf-r, .ask-card:has(.ask-form:focus-within, .ask-chips a:hover) .sprout-leaf-r { transform: rotate(16deg) }
+}
 .hero-foot { position: absolute; z-index: 3; left: 0; right: 0; bottom: 22px; display: flex; justify-content: space-between; max-width: calc(var(--max) + 2 * var(--gutter)); margin: auto; padding: 0 var(--gutter); font: 500 11px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: rgba(243, 250, 234, .78); animation: rise 1s 1.3s var(--ease) both }
 .scroll-cue, .foot-end { display: flex; align-items: center; gap: 12px }
 .foot-end { gap: 10px }
@@ -169,6 +179,31 @@ h1 .serif { font-size: 1.08em; line-height: .92; color: var(--hero-accent); lett
 .tape .track { animation-duration: 60s }
 .tape .track span { font: 500 13px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; padding-right: 0 }
 .track.reverse { animation-direction: reverse }
+
+/* 02 · Playground: the same sprout and question flow as /playground, handing questions over with ?ask= */
+.ask { padding: clamp(96px, 12vw, 176px) var(--gutter) 0 }
+.ask-card { display: grid; grid-template-columns: minmax(260px, .8fr) 1.2fr; max-width: var(--max); margin: 0 auto; border-radius: 32px; overflow: hidden; background: var(--white); box-shadow: 0 0 0 1px rgba(6, 63, 37, .07), 0 50px 100px -50px rgba(6, 63, 37, .45) }
+.ask-stage { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; padding: 56px 32px; background: radial-gradient(70% 50% at 50% 48%, rgba(198, 243, 107, .55), transparent 70%), linear-gradient(180deg, #eef8e2, #dcefc8) }
+.ask-bubble { position: relative; max-width: 280px; padding: 14px 20px; border-radius: 20px; background: var(--white); box-shadow: 0 0 0 1px var(--line), 0 12px 30px -16px rgba(6, 63, 37, .35); font-size: 16px; line-height: 1.45; text-align: center }
+.ask-bubble::before { content: ""; position: absolute; left: 50%; top: -7px; width: 14px; height: 14px; background: inherit; box-shadow: -1px -1px 0 0 var(--line); transform: translateX(-50%) rotate(45deg) }
+.ask-body { display: flex; flex-direction: column; gap: 22px; padding: clamp(28px, 4.5vw, 64px) }
+.ask-body h2 { margin-top: 0; font-size: clamp(36px, 4.4vw, 68px) }
+.ask-lede { max-width: 52ch; font-size: 17px; line-height: 1.6; color: var(--ink-2) }
+.ask-form { display: flex; flex-direction: row; gap: 8px; padding: 6px; border-radius: 999px; background: #f6faf0; box-shadow: inset 0 0 0 1px rgba(6, 63, 37, .14); transition: box-shadow .3s }
+.ask-form:focus-within { box-shadow: inset 0 0 0 1px var(--verdant), 0 0 0 4px rgba(29, 168, 74, .16) }
+.ask-form input, .ask-form input:focus { flex: 1; min-width: 0; min-height: 48px; margin: 0; padding: 0 16px; border: 0; background: transparent; box-shadow: none }
+.ask-form .button { flex: none; min-height: 48px }
+.ask-chips { list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0; padding: 0 }
+.ask-chips a { display: flex; justify-content: space-between; gap: 12px; height: 100%; padding: 14px 16px; border-radius: 16px; background: var(--dew); box-shadow: inset 0 0 0 1px var(--line); font-size: 14px; line-height: 1.45; transition: background .3s, transform .4s var(--ease) }
+.ask-chips a span { color: var(--fern); transition: transform .4s var(--ease) }
+@media (hover: hover) {
+  .ask-chips a:hover { background: var(--lime); transform: translateY(-2px) }
+  .ask-chips a:hover span { transform: translate(3px, -3px) }
+}
+.ask-outline { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; font: 500 11px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-2) }
+.ask-outline ol { display: contents; list-style: none }
+.ask-outline span { color: var(--fern) }
+.ask-outline b { margin-right: 6px; font-weight: 500; color: var(--poppy) }
 
 /* 02 · How it works */
 .how, .request { padding: clamp(96px, 13vw, 192px) var(--gutter) }
@@ -285,6 +320,8 @@ pre span { animation: type .35s var(--ease) both; animation-delay: calc(var(--i)
   .giant span { animation: from-left linear both; animation-timeline: view(); animation-range: entry 20% cover 45% }
   .giant em { animation: from-right linear both; animation-timeline: view(); animation-range: entry 20% cover 45% }
   .nevers s::after { animation: strike linear both; animation-timeline: view(); animation-range: entry calc(60% + var(--i) * 10%) cover calc(42% + var(--i) * 5%) }
+  .ask-card { animation: grow linear both; animation-timeline: view(); animation-range: entry 0% entry 80% }
+  .ask-chips li { animation: rise linear both; animation-timeline: view(); animation-range: entry calc(var(--i) * 5%) entry calc(60% + var(--i) * 5%) }
   .guides li { animation: rise linear both; animation-timeline: view(); animation-range: entry calc(var(--i) * 6%) entry calc(70% + var(--i) * 6%) }
   .facets div { animation: rise linear both; animation-timeline: view(); animation-range: entry calc(var(--i) * 5%) entry calc(70% + var(--i) * 5%) }
   .workspace { animation: grow linear both; animation-timeline: view(); animation-range: entry 0% entry 80% }
@@ -309,6 +346,7 @@ pre span { animation: type .35s var(--ease) both; animation-delay: calc(var(--i)
 @keyframes flap { to { transform: scaleY(-.6) } }
 @keyframes rock { from { rotate: -1.5deg } to { rotate: 2deg } }
 @keyframes approach { to { scale: 1.8; translate: 0 4% } }
+@keyframes peek { from { transform: translateY(70%); opacity: 0 } }
 @keyframes twinkle { from { opacity: .35 } }
 @keyframes beams { to { opacity: .6 } }
 @keyframes eq { from { height: 25% } to { height: 100% } }
@@ -343,6 +381,10 @@ pre span { animation: type .35s var(--ease) both; animation-delay: calc(var(--i)
   .facets { grid-template-columns: 1fr 1fr }
   .workspace { grid-template-columns: 1fr }
   .guides { grid-template-columns: 1fr 1fr }
+  .ask-card { grid-template-columns: 1fr }
+  .ask-stage { flex-direction: row; padding: 28px 24px }
+  .ask-stage .sprout { width: 120px !important }
+  .ask-bubble::before { left: -7px; top: 50%; transform: translateY(-50%) rotate(-45deg) }
   .hint { display: none }
 }
 @media (max-width: 560px) {
@@ -355,6 +397,12 @@ pre span { animation: type .35s var(--ease) both; animation-delay: calc(var(--i)
   .actions .button { flex: 1 1 auto; white-space: nowrap }
   .coords, .pill-label { display: none }
   .moon { top: 9%; right: 4% }
+  .meadow-sprout { right: 6%; bottom: 72px }
+  .meadow-sprout .sprout { width: 64px !important }
+  .meadow-bubble { font-size: 12px; padding: 6px 10px }
+  .ask-chips { grid-template-columns: 1fr }
+  .ask-stage { flex-direction: column; text-align: center }
+  .ask-bubble::before { left: 50%; top: -7px; transform: translateX(-50%) rotate(45deg) }
   .guides { grid-template-columns: 1fr }
   .guides a { min-height: 0 }
   .fields { grid-template-columns: 1fr }

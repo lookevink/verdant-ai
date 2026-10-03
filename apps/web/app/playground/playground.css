@@ -140,62 +140,6 @@
 
 .pg-switch { display: none }
 
-/* Sprout: sways when idle, perks up to listen, looks up while thinking, talks with --mouth, bounces when done. */
-.sprout { flex: none; aspect-ratio: 200 / 220; transition: width .6s var(--ease) }
-.sprout svg { display: block; width: 100%; height: 100%; overflow: visible }
-.sprout-shadow { fill: rgba(6, 63, 37, .18) }
-.sprout-soil { fill: #6b4a2b }
-.sprout-stem { fill: none; stroke: #12813a; stroke-width: 9; stroke-linecap: round }
-.sprout-vein { fill: none; stroke: rgba(6, 63, 37, .28); stroke-width: 2; stroke-linecap: round }
-.sprout-body { transform-origin: 100px 206px; animation: sprout-sway 5.5s ease-in-out infinite alternate }
-.sprout-leaf-l { transform-origin: 98px 84px; animation: sprout-leaf-l 4.2s ease-in-out infinite alternate }
-.sprout-leaf-r { transform-origin: 102px 80px; animation: sprout-leaf-r 4.8s ease-in-out infinite alternate }
-.sprout-leaf-l, .sprout-leaf-r, .sprout-leaves .sprout-vein { transition: transform .6s var(--ease) }
-.sprout-head { transform-origin: 100px 168px; transition: transform .6s var(--ease) }
-.sprout-gloss { fill: none; stroke: rgba(255, 255, 255, .55); stroke-width: 4; stroke-linecap: round }
-.sprout-cheek { fill: #ff5b3a; opacity: .22; transition: opacity .5s }
-.sprout-eye ellipse { fill: #072a1a }
-.sprout-glint { fill: #fff }
-.sprout-eyes { transform-box: fill-box; transition: transform .5s var(--ease) }
-.sprout-eye { transform-box: fill-box; transform-origin: center; animation: sprout-blink 5s infinite }
-.sprout-eye + .sprout-eye { animation-delay: .04s }
-.sprout-happy-eye { fill: none; stroke: #072a1a; stroke-width: 3.4; stroke-linecap: round; opacity: 0 }
-.sprout-brow { fill: none; stroke: rgba(7, 42, 26, .55); stroke-width: 2.6; stroke-linecap: round; opacity: 0; transition: opacity .4s, transform .4s var(--ease) }
-.sprout-smile { fill: none; stroke: #072a1a; stroke-width: 3.2; stroke-linecap: round; opacity: calc(1 - var(--mouth, 0) * 6); transition: opacity .1s }
-.sprout-open { fill: #3a1410; transform-box: fill-box; transform-origin: center top; transform: scaleY(calc(var(--mouth, 0) * 1.25)) scaleX(calc(.7 + var(--mouth, 0) * .45)) }
-.sprout-thought { fill: rgba(251, 254, 246, .95); stroke: var(--line); opacity: 0; transition: opacity .4s }
-.sprout-thought circle { transform-box: fill-box; transform-origin: center; animation: sprout-think 1.4s ease-in-out infinite }
-.sprout-thought circle:nth-child(2) { animation-delay: .2s }
-.sprout-thought circle:nth-child(3) { animation-delay: .4s }
-
-.sprout[data-mood="listening"] .sprout-leaf-l { transform: rotate(-12deg) }
-.sprout[data-mood="listening"] .sprout-leaf-r { transform: rotate(12deg) }
-.sprout[data-mood="listening"] .sprout-head { transform: rotate(-4deg) }
-.sprout[data-mood="listening"] .sprout-eye ellipse { transform: scale(1.08) }
-.sprout[data-mood="thinking"] .sprout-eyes { transform: translate(3px, -4px) }
-.sprout[data-mood="thinking"] .sprout-brow { opacity: 1; transform: translateY(-2px) }
-.sprout[data-mood="thinking"] .sprout-thought { opacity: 1 }
-.sprout[data-mood="thinking"] .sprout-body { animation-duration: 2.6s }
-.sprout[data-mood="speaking"] .sprout-cheek { opacity: .4 }
-.sprout[data-mood="speaking"] .sprout-head { animation: sprout-nod .9s ease-in-out infinite alternate }
-.sprout[data-mood="happy"] .sprout-eye { opacity: 0 }
-.sprout[data-mood="happy"] .sprout-happy-eye { opacity: 1 }
-.sprout[data-mood="happy"] .sprout-cheek { opacity: .45 }
-.sprout[data-mood="happy"] .sprout-body { animation: sprout-hop .5s var(--ease) 2 alternate }
-.sprout[data-mood="happy"] .sprout-leaf-l { transform: rotate(-18deg) }
-.sprout[data-mood="happy"] .sprout-leaf-r { transform: rotate(18deg) }
-.sprout[data-mood="sad"] .sprout-leaf-l { transform: rotate(26deg) }
-.sprout[data-mood="sad"] .sprout-leaf-r { transform: rotate(-26deg) }
-.sprout[data-mood="sad"] .sprout-head { transform: rotate(3deg) translateY(4px) }
-.sprout[data-mood="sad"] .sprout-smile { transform: translateY(150px) scaleY(-1) translateY(-142px) }
-
-@keyframes sprout-sway { from { transform: rotate(-2.2deg) } to { transform: rotate(2.2deg) } }
-@keyframes sprout-leaf-l { from { transform: rotate(3deg) } to { transform: rotate(-5deg) } }
-@keyframes sprout-leaf-r { from { transform: rotate(-3deg) } to { transform: rotate(5deg) } }
-@keyframes sprout-blink { 0%, 93%, 100% { transform: scaleY(1) } 95.5% { transform: scaleY(.08) } }
-@keyframes sprout-think { 0%, 100% { transform: translateY(0); opacity: .5 } 50% { transform: translateY(-4px); opacity: 1 } }
-@keyframes sprout-nod { from { transform: rotate(-1.5deg) } to { transform: rotate(1.5deg) translateY(1px) } }
-@keyframes sprout-hop { from { transform: translateY(0) } to { transform: translateY(-12px) scaleY(1.03) } }
 @keyframes pg-spin { to { transform: rotate(360deg) } }
 @keyframes pg-pulse { from { opacity: .45 } to { opacity: 1 } }
 @keyframes pg-rise { from { opacity: 0; transform: translateY(8px) } }

@@ -1,5 +1,6 @@
 "use client";
 import { forwardRef } from "react";
+import "./sprout.css";
 
 export type Mood = "idle" | "listening" | "thinking" | "speaking" | "happy" | "sad";
 

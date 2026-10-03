@@ -1,6 +1,7 @@
 import { Fragment, type CSSProperties } from "react";
 import { exampleRequest } from "@verdant/contracts";
 import { Field } from "./field";
+import { Sprout } from "./playground/sprout";
 import { SkyToggle } from "./sky";
 import { SoundToggle } from "./sound";
 import { RequestForm } from "./request-form";
@@ -24,6 +25,16 @@ const facets = [
 ];
 const nevers = ["Missing values → zero", "Coarse pixel → fine measurement", "Undocumented interpolation"];
 const clouds = [{ y: "6%", s: 1.25, t: "150s", d: "-40s", x: "6vw" }, { y: "19%", s: 0.8, t: "115s", d: "-95s", x: "62vw" }, { y: "2%", s: 0.95, t: "180s", d: "-150s", x: "84vw" }, { y: "30%", s: 0.55, t: "100s", d: "-12s", x: "38vw" }];
+
+// Each question's data is already published, so it runs end to end in the playground.
+const questions = [
+  "Did the CSIRO vineyard near Mildura irrigate more during the hottest spells of summer 2003–04?",
+  "What were the hottest and coolest days near Mildura in January 2004?",
+  "How reliable are the NWS day-two frost forecasts? Show their calibration.",
+  "Did higher nitrogen rates pay off in the Ohio corn trials?",
+];
+const asking = (question: string) => `/playground?ask=${encodeURIComponent(question)}`;
+const outline = ["Answer", "Data and provenance", "Methodology", "Charts", "Limitations"];
 
 const docs = "https://docs.verdant-ai.com";
 const guides = [
@@ -107,7 +118,7 @@ export default function Page() {
   return <>
     <nav className="nav" aria-label="Primary">
       <a className="brand" href="#top"><Mark />verdant<span> AI</span></a>
-      <div className="nav-links"><a href="#how">How it works</a><a href="#evidence">Evidence</a><a href="/api/v1/openapi.json">API contract</a><a href={docs}>Docs <span aria-hidden="true">↗</span></a></div>
+      <div className="nav-links"><a href="/playground">Playground</a><a href="#how">How it works</a><a href="#evidence">Evidence</a><a href="/api/v1/openapi.json">API contract</a><a href={docs}>Docs <span aria-hidden="true">↗</span></a></div>
       <a className="nav-cta" href="#request">Query data <Arrow /></a>
     </nav>
 
@@ -121,7 +132,7 @@ export default function Page() {
             <span className="line serif"><Words text="Give it" from={5} />{" "}<span className="underlined"><Words text="better data." from={7} /><svg className="swash" viewBox="0 0 400 24" preserveAspectRatio="none" aria-hidden="true"><path d="M4 18C80 6 170 4 250 9s110 6 146 1" /></svg></span></span></h1>
           <div className="hero-row">
             <p className="lede">Specify the place, period and format. Verdant retrieves, normalizes and delivers climate data with its evidence intact.</p>
-            <div className="actions"><a className="button" href="#request">Query real data <Arrow /></a><a className="button ghost" href={docs}>Read the docs <span aria-hidden="true">↗</span></a></div>
+            <div className="actions"><a className="button" href="/playground">Ask the analyst <Arrow /></a><a className="button ghost" href={docs}>Read the docs <span aria-hidden="true">↗</span></a></div>
           </div>
         </div>
         <div className="sky" aria-hidden="true">
@@ -131,6 +142,7 @@ export default function Page() {
         <div className="ground" aria-hidden="true" />
         <Field />
         <Foreground />
+        <a className="meadow-sprout" href="/playground" aria-label="Ask Sprout, Verdant's analyst"><span className="meadow-bubble" aria-hidden="true">Ask me anything</span><Sprout mood="idle" size={92} label="Sprout" /></a>
         <div className="hero-foot"><span className="scroll-cue"><i />Scroll</span><span className="hint">Touch the meadow</span><span className="foot-end"><span className="coords">Mildura, AU · 34.42°S 142.35°E</span><SkyToggle /><SoundToggle /></span></div>
       </section>
 
@@ -158,9 +170,29 @@ export default function Page() {
         <div className="tape" aria-hidden="true"><div className="track reverse"><span>{tape.repeat(3)}</span><span>{tape.repeat(3)}</span></div></div>
       </section>
 
+      <section className="ask" id="ask" aria-labelledby="ask-title">
+        <div className="ask-card">
+          <div className="ask-stage">
+            <Sprout mood="idle" size={180} label="Sprout, Verdant's analyst" />
+            <p className="ask-bubble">Hi! Ask me about Verdant&apos;s climate and farm data.</p>
+          </div>
+          <div className="ask-body">
+            <p className="eyebrow"><b>02</b>Playground</p>
+            <h2 id="ask-title">Ask in plain language. <em>Get the evidence.</em></h2>
+            <p className="ask-lede">Verdant&apos;s analyst finds the published datasets that fit, works through them in a sandbox and writes up its method with charts, equations and downloadable tables. Type a question, or talk it through with Sprout.</p>
+            <form className="ask-form" action="/playground" method="get">
+              <input name="ask" required maxLength={4000} autoComplete="off" placeholder="Ask about climate, forecasts, trials…" aria-label="Your question" />
+              <button className="button">Ask <Arrow /></button>
+            </form>
+            <ul className="ask-chips">{questions.map((question, i) => <li key={question} style={vars({ "--i": i })}><a href={asking(question)}>{question}<span aria-hidden="true">↗</span></a></li>)}</ul>
+            <div className="ask-outline"><span>Every report</span><ol>{outline.map((part, i) => <li key={part}><b>0{i + 1}</b>{part}</li>)}</ol></div>
+          </div>
+        </div>
+      </section>
+
       <section className="how" id="how">
         <div className="section-head">
-          <div><p className="eyebrow"><b>02</b>How it works</p><h2>From question <em>to clean data.</em></h2></div>
+          <div><p className="eyebrow"><b>03</b>How it works</p><h2>From question <em>to clean data.</em></h2></div>
           <p>Agents describe what they need. Verdant handles retrieval, reconciliation and checks, then hands back the exact representation requested, with nothing silently changed.</p>
         </div>
         <ol className="steps">
@@ -175,7 +207,7 @@ export default function Page() {
 
       <section className="evidence" id="evidence">
         <div className="evidence-frame">
-          <p className="eyebrow"><b>03</b>Provenance</p>
+          <p className="eyebrow"><b>04</b>Provenance</p>
           <h2 className="giant"><span>Evidence</span> <em>intact.</em></h2>
           <div className="evidence-body">
             <p>Every delivery carries the meaning of its numbers: where they came from, what they measure and what was done to them. Your agent can cite it and check it.</p>
@@ -188,7 +220,7 @@ export default function Page() {
 
       <section className="request" id="request">
         <div className="section-head">
-          <div><p className="eyebrow"><b>04</b>Try the contract</p><h2>One clear contract. <em>Every source accounted for.</em></h2></div>
+          <div><p className="eyebrow"><b>05</b>Try the contract</p><h2>One clear contract. <em>Every source accounted for.</em></h2></div>
         </div>
         <div className="workspace">
           <div className="context">
@@ -202,7 +234,7 @@ export default function Page() {
 
       <section className="build" id="docs">
         <div className="section-head">
-          <div><p className="eyebrow"><b>05</b>Build with Verdant</p><h2>Read the docs. <em>Ship the query.</em></h2></div>
+          <div><p className="eyebrow"><b>06</b>Build with Verdant</p><h2>Read the docs. <em>Ship the query.</em></h2></div>
           <p>Reading published data is free and needs no API key. New data is acquired on request and paid per acquisition with MPP. Start over HTTP, or hand your agent the MCP server.</p>
         </div>
         <ul className="guides">
@@ -222,7 +254,7 @@ export default function Page() {
       <div className="footer-row">
         <p>{stages.join(" → ")}</p>
         <p>Published data free · new acquisitions paid per request via MPP</p>
-        <nav className="footer-links" aria-label="Footer"><a href={docs}>Docs</a><a href={`${docs}/llms.txt`}>llms.txt</a><a href="/api/v1/openapi.json">OpenAPI</a><a href="#top">Back to top ↑</a></nav>
+        <nav className="footer-links" aria-label="Footer"><a href="/playground">Playground</a><a href={docs}>Docs</a><a href={`${docs}/llms.txt`}>llms.txt</a><a href="/api/v1/openapi.json">OpenAPI</a><a href="#top">Back to top ↑</a></nav>
       </div>
       <p className="wordmark" aria-hidden="true">{[..."verdant"].map((letter, i) => <span key={i} style={vars({ "--i": i })}>{letter}</span>)}</p>
     </footer>

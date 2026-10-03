@@ -51,7 +51,16 @@ export function Playground() {
   const followedAt = useRef(0);
   sessionRef.current = session;
 
-  useEffect(() => { const saved = savedSession(); if (saved) setSession(saved); }, []);
+  useEffect(() => {
+    const saved = savedSession();
+    if (saved) { sessionRef.current = saved; setSession(saved); }
+    // A question handed over from the landing page (/playground?ask=…) is asked once, then removed from the address.
+    const params = new URLSearchParams(location.search), question = params.get("ask")?.trim();
+    if (!question) return;
+    params.delete("ask");
+    history.replaceState(history.state, "", `${location.pathname}${params.size ? `?${params}` : ""}${location.hash}`);
+    void ask(question);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     dispatch(null);
     if (!session) return;
