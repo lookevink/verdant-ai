@@ -1,0 +1,4 @@
+interface:
+  display_name: "Verdant Forecast Backtest"
+  short_description: "Replay rain and frost protection decisions"
+  default_prompt: "Use $verdant-forecast-backtest to run a reproducible analysis using the Verdant service."

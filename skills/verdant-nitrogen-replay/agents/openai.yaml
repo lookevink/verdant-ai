@@ -1,0 +1,4 @@
+interface:
+  display_name: "Verdant Nitrogen Replay"
+  short_description: "Rescore nitrogen policies against measured yields"
+  default_prompt: "Use $verdant-nitrogen-replay to run a reproducible analysis using the Verdant service."

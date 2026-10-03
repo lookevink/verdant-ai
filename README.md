@@ -125,3 +125,11 @@ Implemented: the versioned read/query contract, generated OpenAPI, Mintlify mono
 - [Platform roadmap](PLATFORM-ROADMAP.md)
 
 BetterStack log queries must use SQL API connections. Browser/UI log queries are prohibited.
+
+## Agent skills
+
+Install the [Verdant backtesting skills](skills/README.md) for service-backed data discovery, forecast protection, perennial economics and nitrogen-policy replay:
+
+```sh
+npx skills add lookevink/verdant-ai --skill verdant-data-discovery verdant-forecast-backtest verdant-perennial-economics verdant-nitrogen-replay
+```

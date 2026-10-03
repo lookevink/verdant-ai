@@ -10,7 +10,7 @@
       { "tab": "Guides", "groups": [
         { "group": "Start", "pages": ["index", "quickstart"] },
         { "group": "Contract", "pages": ["concepts/data-contract", "concepts/delivery", "concepts/errors", "concepts/request-lifecycle"] },
-        { "group": "Agents", "pages": ["agents/mcp"] }
+        { "group": "Agents", "pages": ["agents/mcp", "agents/skills"] }
       ] },
       { "tab": "API reference", "openapi": "openapi.json" }
     ],

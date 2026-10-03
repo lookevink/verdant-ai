@@ -1,0 +1,64 @@
+---
+title: "Backtesting skills"
+description: "Install service-backed workflows for finding evidence and reproducing agricultural backtests."
+---
+
+Verdant's agent skills turn a research question into a reproducible analysis using
+our public API or data MCP. They need no handoff archive, database credentials or
+private source checkout. Fresh API responses can be cached for the run.
+
+## Install
+
+Install the four published skills from the [Verdant repository](https://github.com/lookevink/verdant-ai/tree/main/skills):
+
+```sh
+npx skills add lookevink/verdant-ai --skill verdant-data-discovery verdant-forecast-backtest verdant-perennial-economics verdant-nitrogen-replay
+```
+
+Choose your agent and installation scope in the CLI. You can also install a
+single skill by passing only its name after `--skill`. Installation uses the
+[skills CLI](https://skills.sh/docs/cli); its default install telemetry feeds
+skills.sh discovery. A directory listing may take time to appear.
+
+[Browse Verdant on skills.sh](https://skills.sh/lookevink/verdant-ai).
+
+## Choose a workflow
+
+| Skill | Use it for |
+| --- | --- |
+| `verdant-data-discovery` | Find candidate datasets without knowing IDs, assess evidence and coverage, download complete versions, or describe missing inputs |
+| `verdant-forecast-backtest` | Replay rain/frost protection decisions with history baselines and cost/loss sensitivity |
+| `verdant-perennial-economics` | Compare almond/grape irrigation and pruning programs across their observed horizon, with explicit economic assumptions |
+| `verdant-nitrogen-replay` | Rescore all frozen Ohio policy variants against measured trial menus, including fees and alternative weighting |
+
+Each skill can be installed independently. The discovery skill includes an
+optional Python standard-library downloader that verifies full dataset content
+hashes and records HTTP provenance. The domain skills guide independent
+calculations; they do not ship scientific datasets or saved expected answers.
+
+## Example prompts
+
+- “Use $verdant-data-discovery to find evidence for grape irrigation decisions. Explain which datasets support a historical economic comparison.”
+- “Use $verdant-forecast-backtest to replay day-two rain and frost protection from the service. Report every declared threshold.”
+- “Use $verdant-perennial-economics to compare all CSIRO treatment years at crop price 0.50/kg and water value 1.00/m³, equal quality and zero extra cost.”
+- “Use $verdant-nitrogen-replay to rescore every Ohio variant and show both equal-year and equal-trial margins.”
+
+## Connect and reproduce
+
+Connect `https://api.verdant-ai.com/mcp` in a Streamable HTTP client, or use the
+public REST API directly. See [MCP connection instructions](/agents/mcp). Installing
+a skill does not itself register an MCP server. Current public reads require no
+credentials.
+
+Skills discover the live catalog, inspect methodology, pin immutable versions,
+validate complete cohorts and compute from inputs. They preserve unfavorable
+seasons and variants, and distinguish measured outcomes from conditional
+financial assumptions. Save the calculation code, request receipt, assumptions,
+per-year results and frozen output digest with each run.
+
+The service supports frozen forecast/policy replay. Fresh NWS calibration and
+full Ohio refitting need additional inputs or specifications. Current acquisition
+is disabled: a missing-data brief is not a queued data request. Catalog reference
+scores can expose expected results during discovery; disclose this before
+calling an evaluation blinded. These historical analyses do not establish
+prospective farmer-profit gains.

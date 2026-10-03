@@ -1,0 +1,4 @@
+interface:
+  display_name: "Verdant Data Discovery"
+  short_description: "Find and validate data for agricultural backtests"
+  default_prompt: "Use $verdant-data-discovery to run a reproducible analysis using the Verdant service."

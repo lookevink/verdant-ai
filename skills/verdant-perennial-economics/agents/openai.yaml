@@ -1,0 +1,4 @@
+interface:
+  display_name: "Verdant Perennial Economics"
+  short_description: "Compare perennial management costs and outcomes"
+  default_prompt: "Use $verdant-perennial-economics to run a reproducible analysis using the Verdant service."
