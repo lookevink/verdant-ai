@@ -1,0 +1,22 @@
+---
+title: "Representation and delivery"
+description: "Direct values, files and asynchronous work share one data contract."
+---
+
+Representation is how values are encoded. Delivery is how and when a client receives them. JSON and CSV can both be returned directly in an HTTP response; neither requires a stored file or download workflow.
+
+| Use case | Delivery | Current availability |
+| --- | --- | --- |
+| Bounded published climate query | `200` with inline JSON `{manifest, data}` | Available |
+| The same values as CSV | `200` with inline CSV and provenance headers | Available |
+| Agent query through MCP | Structured JSON values in the tool result | Available |
+| Native raster | Inline JSON tile/cell response | Available |
+| Tabular study evidence | Paginated inline JSON | Available |
+| Large or uncached query | Durable asynchronous request, then a result response or artifact | Planned |
+| GeoTIFF, NetCDF, Parquet | Additional representations with their own validated adapters | Planned |
+
+The default query result is inline JSON. There is no `Content-Disposition: attachment` header. A client can save the body if it wants a file. The same query with `format: 'csv'` changes only the representation; source selection, cells and missingness rules remain identical.
+
+For future asynchronous work, the API will return `202` and a request ID while acquisition or larger processing runs. Status, events and results will use that ID. This workflow will not implicitly convert an unsupported direct query into a paid job. The client must accept an explicit quote and enforce its spending limit.
+
+Streaming and alternate representations will be advertised through capabilities only when implemented. Current pagination uses a stable cursor and an immutable dataset version. Clients should follow `nextCursor` rather than constructing offsets or assuming that one page is complete.

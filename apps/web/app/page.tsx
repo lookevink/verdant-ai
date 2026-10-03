@@ -11,10 +11,10 @@ const stages = ["Request", "Retrieve", "Normalize", "Validate", "Deliver"];
 const tape = "SILO · daily maximum air temperature · EPSG:4326 · degrees Celsius · native grid · missing values preserved · CSV · JSON · ";
 const steps = [
   { title: "Request", live: true, text: "Name the variable, place, period, units and format. Meaning stays separate from serialization, so “temperature as CSV” is never ambiguous." },
-  { title: "Retrieve", text: "Compatible published data is reused first. On a miss, a bounded acquisition job fetches from supported sources only." },
+  { title: "Retrieve", live: true, text: "Query compatible published data and check its actual coverage. Acquisition for uncached requests is still in development." },
   { title: "Normalize", text: "Units, calendars, spatial support and missing values are reconciled and documented, never quietly relabeled or filled." },
   { title: "Validate", text: "Deterministic checks confirm variables, dimensions, units and coverage before anything is published." },
-  { title: "Deliver", text: "CSV or JSON with a provenance manifest and checksum. The next compatible request reuses the same version." },
+  { title: "Deliver", live: true, text: "Receive JSON values with provenance directly, or request CSV in the response. Pin the dataset version for reproducible queries." },
 ];
 const facets = [
   ["Source", "SILO"], ["Variable", "Daily maximum air temperature"], ["Units", "Degrees Celsius"], ["Resolution", "Native grid · daily"],
@@ -71,8 +71,8 @@ export default function Page() {
   return <>
     <nav className="nav" aria-label="Primary">
       <a className="brand" href="#top"><Mark />verdant<span> AI</span></a>
-      <div className="nav-links"><a href="#how">How it works</a><a href="#evidence">Evidence</a><a href="#request">Request</a></div>
-      <a className="nav-cta" href="#request">Try the contract <Arrow /></a>
+      <div className="nav-links"><a href="#how">How it works</a><a href="#evidence">Evidence</a><a href="/api/v1/openapi.json">API contract</a></div>
+      <a className="nav-cta" href="#request">Query data <Arrow /></a>
     </nav>
 
     <main>
@@ -84,7 +84,7 @@ export default function Page() {
             <span className="line serif"><Words text="Give it" from={5} />{" "}<span className="underlined"><Words text="better data." from={7} /><svg className="swash" viewBox="0 0 400 24" preserveAspectRatio="none" aria-hidden="true"><path d="M4 18C80 6 170 4 250 9s110 6 146 1" /></svg></span></span></h1>
           <div className="hero-row">
             <p className="lede">Specify the place, period and format. Verdant is being built to retrieve, normalize and deliver climate data with its evidence intact.</p>
-            <div className="actions"><a className="button" href="#request">Validate a request <Arrow /></a><a className="button ghost" href="#how">How it works</a></div>
+            <div className="actions"><a className="button" href="#request">Query real data <Arrow /></a><a className="button ghost" href="#how">How it works</a></div>
           </div>
         </div>
         <div className="meadow"><div className="ground" aria-hidden="true" /><Field /></div>
@@ -150,7 +150,7 @@ export default function Page() {
         <div className="workspace">
           <div className="context">
             <RegionMap />
-            <p>Start with daily maximum temperature around Mildura, Australia. Validate the request before acquisition and payment are connected.</p>
+            <p>Query daily maximum temperature around Mildura, Australia, for 1 January 2003. Read the values directly with their source and version.</p>
             <dl><dt>Source</dt><dd>SILO</dd><dt>Units</dt><dd>Degrees Celsius</dd><dt>Resolution</dt><dd>Native grid · daily</dd><dt>Missing data</dt><dd>Preserved</dd></dl>
           </div>
           <RequestForm exampleRequest={exampleRequest} />
@@ -162,7 +162,7 @@ export default function Page() {
       <GrassEdge className="edge-soil" />
       <div className="footer-row">
         <p>{stages.join(" → ")}</p>
-        <p>Foundation build · no purchases or acquisition yet</p>
+        <p>Live demo data · acquisition and purchases in development</p>
         <a href="#top">Back to top ↑</a>
       </div>
       <p className="wordmark" aria-hidden="true">{[..."verdant"].map((letter, i) => <span key={i} style={vars({ "--i": i })}>{letter}</span>)}</p>

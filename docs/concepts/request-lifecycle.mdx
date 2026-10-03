@@ -1,0 +1,30 @@
+---
+title: "Acquisition and purchase lifecycle"
+description: "The intended contract for work that cannot be answered by a direct query."
+---
+
+<Warning>
+This lifecycle is a design contract, not an available purchase API. `/api/v1/data/requests` currently returns `503 acquisition_not_ready` and never charges. Quotes, request status/events, entitlements and result downloads will be added to the live OpenAPI document only after implementation and recovery checks pass.
+</Warning>
+
+## Planned sequence
+
+1. `POST /api/v1/data/quotes` checks the request, source coverage, license and compatible cached data. It returns a fixed offer with a quote ID, expiry, amount in minor currency units, currency, immutable source/transform selection, output schema and resource limits. Quoting is free.
+2. `POST /api/v1/data/requests` binds that quote to an idempotency key and verified MPP payment. A bounded ready result can be returned immediately; deferred work returns `202`, a durable request ID, receipt and requester-bound credential.
+3. `GET /api/v1/data/requests/{id}` returns authorized processing state without another charge.
+4. `GET /api/v1/data/requests/{id}/events` returns sanitized source/tool/validation events in order.
+5. `GET /api/v1/data/requests/{id}/result` returns authorized data directly or a bounded artifact once ready, including its provenance manifest and checksum.
+
+The quote freezes meaning, representation, price, deadline and limits. Clients must enforce their own maximum spend before purchasing. An unsupported query is rejected before payment. The API does not turn a direct read into a purchase without that explicit exchange.
+
+## Independent state machines
+
+Processing: `queued → acquiring → normalizing → validating → publishing → ready`, with `failed` and `cancelled` terminal states.
+
+Payment: `unpaid → verified`, with `reconciliation_required`, `refund_pending` and `refunded` tracked separately. A failed job is not proof of a refund. Unknown settlement must be reconciled before another charge is attempted.
+
+One logical purchase creates one durable entitlement and job. Retrying the same idempotency key with the same request recovers the existing purchase; reusing it with different input returns a conflict. Worker claims use expiring leases and fencing tokens. Published versions and artifacts are attached transactionally only after independent validation.
+
+## Acquisition boundary
+
+The first acquisition adapter is bounded SILO retrieval, coordinated by Pi with explicit tools. Source discovery, download, normalization and validation events are recorded; private model reasoning is not exposed as progress. Pi receives only the provider/model credentials it needs, not database or payment secrets. Arbitrary source URLs, generic shell execution, and cross-tenant private cache reuse are not part of the initial contract.

@@ -1,0 +1,2153 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Verdant Climate Data API",
+    "version": "1.0.0",
+    "description": "Versioned climate data with preserved meaning. Discover → inspect → resolve → query. Small published-data queries return values directly, with explicit units, spatial support, missingness and provenance. Public demo endpoints require no credentials. Paid acquisition is not enabled; consult capabilities before planning a workflow."
+  },
+  "servers": [
+    {
+      "url": "https://api.verdant-ai.com",
+      "description": "Production (public demo data; payment test mode)"
+    }
+  ],
+  "security": [],
+  "tags": [
+    {
+      "name": "Discovery"
+    },
+    {
+      "name": "Queries"
+    },
+    {
+      "name": "Observations"
+    },
+    {
+      "name": "Raster"
+    },
+    {
+      "name": "Service"
+    }
+  ],
+  "paths": {
+    "/api/health": {
+      "get": {
+        "operationId": "getHealth",
+        "tags": [
+          "Service"
+        ],
+        "summary": "Check process health",
+        "description": "Process/configuration status only. This does not verify database or source-provider connectivity.",
+        "responses": {
+          "200": {
+            "description": "Process is running.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/capabilities": {
+      "get": {
+        "operationId": "getCapabilities",
+        "tags": [
+          "Discovery"
+        ],
+        "summary": "Discover capabilities",
+        "description": "Discover the implemented variables, sources, representations, limits and feature availability. This does not check current source coverage.",
+        "responses": {
+          "200": {
+            "description": "Implemented capabilities and hard query limits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Capabilities"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/datasets": {
+      "get": {
+        "operationId": "listDatasets",
+        "tags": [
+          "Discovery"
+        ],
+        "summary": "List datasets",
+        "description": "List published catalog metadata. Demo datasets can be read without payment; paid metadata does not grant data access. Restricted datasets are omitted.",
+        "responses": {
+          "200": {
+            "description": "Published dataset metadata.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Catalog"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Response exceeds the 1 MB bound; narrow the query.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Data service unavailable. Retry with exponential backoff.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/datasets/{id}": {
+      "get": {
+        "operationId": "getDataset",
+        "tags": [
+          "Discovery"
+        ],
+        "summary": "Inspect a dataset",
+        "description": "Inspect an immutable dataset version, including units, actual coverage, source hashes, license, attribution and spatial support.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Immutable dataset version ID returned by the catalog.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dataset version metadata.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query parameters.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown, unpublished, or unavailable under public demo access.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Response exceeds the 1 MB bound; narrow the query.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Data service unavailable. Retry with exponential backoff.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/data/validate": {
+      "post": {
+        "operationId": "validateDataRequest",
+        "tags": [
+          "Queries"
+        ],
+        "summary": "Validate query structure",
+        "description": "Validate shape, calendar dates and ordered bounds only. A valid request is not a coverage guarantee, quote or purchase. Bounds must be west < east and south < north; period start must not follow end. These cross-field constraints are enforced at runtime.",
+        "requestBody": {
+          "required": true,
+          "description": "A bounded climate query. JSON is the default representation. The response contains data directly; no download or acquisition job is required.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DataRequest"
+              },
+              "example": {
+                "variables": [
+                  "air_temperature_max"
+                ],
+                "region": {
+                  "bbox": [
+                    142.3,
+                    -34.45,
+                    142.4,
+                    -34.35
+                  ],
+                  "crs": "EPSG:4326"
+                },
+                "period": {
+                  "start": "2003-01-01",
+                  "end": "2003-01-01"
+                },
+                "temporal_resolution": "daily",
+                "spatial_resolution": "native",
+                "units": {
+                  "air_temperature_max": "degC"
+                },
+                "data_class": "interpolated_observation",
+                "format": "json",
+                "missing_policy": "preserve",
+                "source_preference": "silo"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Valid request structure, with defaults applied.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Validation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty, malformed JSON, or unreadable body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request or response exceeds bounds.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type must be application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid contract, incompatible coverage, or unsupported query.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Data service unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/data/resolve": {
+      "post": {
+        "operationId": "resolveData",
+        "tags": [
+          "Queries"
+        ],
+        "summary": "Resolve coverage",
+        "description": "Check complete published demo coverage for a structured climate query. Returns the selected immutable version and row count, or an explicit unavailable reason. Does not acquire data or charge.",
+        "requestBody": {
+          "required": true,
+          "description": "A bounded climate query. JSON is the default representation. The response contains data directly; no download or acquisition job is required.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DataRequest"
+              },
+              "example": {
+                "variables": [
+                  "air_temperature_max"
+                ],
+                "region": {
+                  "bbox": [
+                    142.3,
+                    -34.45,
+                    142.4,
+                    -34.35
+                  ],
+                  "crs": "EPSG:4326"
+                },
+                "period": {
+                  "start": "2003-01-01",
+                  "end": "2003-01-01"
+                },
+                "temporal_resolution": "daily",
+                "spatial_resolution": "native",
+                "units": {
+                  "air_temperature_max": "degC"
+                },
+                "data_class": "interpolated_observation",
+                "format": "json",
+                "missing_policy": "preserve",
+                "source_preference": "silo"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Coverage checked. available=false is a successful preflight with an unavailable reason.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Resolution"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty, malformed JSON, or unreadable body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request or response exceeds bounds.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type must be application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid contract, incompatible coverage, or unsupported query.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Data service unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/data/query": {
+      "post": {
+        "operationId": "queryData",
+        "tags": [
+          "Queries"
+        ],
+        "summary": "Query data directly",
+        "description": "Return climate data directly in the response, with provenance. JSON includes a manifest and data array; CSV returns rows with version, digest and metadata-link headers. Only published public demo data is admitted. No charging, acquisition or missing-to-zero conversion.",
+        "requestBody": {
+          "required": true,
+          "description": "A bounded climate query. JSON is the default representation. The response contains data directly; no download or acquisition job is required.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DataRequest"
+              },
+              "example": {
+                "variables": [
+                  "air_temperature_max"
+                ],
+                "region": {
+                  "bbox": [
+                    142.3,
+                    -34.45,
+                    142.4,
+                    -34.35
+                  ],
+                  "crs": "EPSG:4326"
+                },
+                "period": {
+                  "start": "2003-01-01",
+                  "end": "2003-01-01"
+                },
+                "temporal_resolution": "daily",
+                "spatial_resolution": "native",
+                "units": {
+                  "air_temperature_max": "degC"
+                },
+                "data_class": "interpolated_observation",
+                "format": "json",
+                "missing_policy": "preserve",
+                "source_preference": "silo"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Complete bounded result, returned inline. Native cell centers are selected west/south inclusive and east/north exclusive; dates are inclusive. No Content-Disposition attachment is set.",
+            "headers": {
+              "Content-Digest": {
+                "description": "SHA-256 of exact response bytes, formatted sha-256=:BASE64:.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Verdant-Dataset-Version": {
+                "description": "Immutable version used.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Verdant-Request-SHA256": {
+                "description": "SHA-256 of the validated, normalized request.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Link": {
+                "description": "Dataset metadata URL with rel=describedby. Includes source references, license and attribution for CSV clients.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueryResult"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "date,longitude,latitude,variable,value,unit,tile,row,col\r\n\"2003-01-01\",\"142.35\",\"-34.4\",\"air_temperature_max\",\"30.5\",\"degC\",\"mildura\",\"48\",\"47\"\r\n"
+              }
+            }
+          },
+          "400": {
+            "description": "Empty, malformed JSON, or unreadable body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request or response exceeds bounds.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type must be application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid contract, incompatible coverage, or unsupported query.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Data service unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/datasets/{id}/observations": {
+      "get": {
+        "operationId": "listObservations",
+        "tags": [
+          "Observations"
+        ],
+        "summary": "Read observations",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Immutable dataset version ID returned by the catalog.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Maximum records in this page. Response size is also capped at 1 MB.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 100
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "description": "Opaque nextCursor from the preceding page. Omit for the first page; stop when nextCursor is null.",
+            "schema": {
+              "type": "string",
+              "maxLength": 256
+            }
+          }
+        ],
+        "description": "Read public demo observations in stable ID order. Native dates and season labels remain distinct; a missing value is null, not zero. Follow nextCursor until null.",
+        "responses": {
+          "200": {
+            "description": "One observation page.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObservationPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query parameters.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown, unpublished, or unavailable under public demo access.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Response exceeds the 1 MB bound; narrow the query.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Data service unavailable. Retry with exponential backoff.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/layers/{id}": {
+      "get": {
+        "operationId": "getRasterLayer",
+        "tags": [
+          "Raster"
+        ],
+        "summary": "Read a raster index or tile",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Immutable dataset version ID returned by the catalog.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Maximum records in this page. Response size is also capped at 1 MB.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 100
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "description": "Opaque nextCursor from the preceding page. Omit for the first page; stop when nextCursor is null.",
+            "schema": {
+              "type": "string",
+              "maxLength": 256
+            }
+          },
+          {
+            "name": "tile",
+            "in": "query",
+            "description": "Omit to list tile metadata. Supply an ID from that list to fetch its bounded row-major cells.",
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          }
+        ],
+        "description": "Only public demo data. Cells are top-down row-major: cells[row * width + col]. NULL is preserved. Affine [a,b,c,d,e,f] maps pixel centers to x=a*(col+.5)+b*(row+.5)+c and y=d*(col+.5)+e*(row+.5)+f.",
+        "responses": {
+          "200": {
+            "description": "Paginated index without tile; complete bounded tile when tile is supplied.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/TilePage"
+                    },
+                    {
+                      "$ref": "#/components/schemas/TileDetail"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query parameters.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown, unpublished, or unavailable under public demo access.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Response exceeds the 1 MB bound; narrow the query.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Data service unavailable. Retry with exponential backoff.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/layers/{id}/sample": {
+      "get": {
+        "operationId": "sampleRaster",
+        "tags": [
+          "Raster"
+        ],
+        "summary": "Read one raster cell",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Immutable dataset version ID returned by the catalog.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+            }
+          },
+          {
+            "name": "tile",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Tile ID from the layer index."
+          },
+          {
+            "name": "row",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "description": "Zero-based index within this tile."
+          },
+          {
+            "name": "col",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "description": "Zero-based index within this tile."
+          }
+        ],
+        "description": "Return one native cell and its spatial metadata. A null value means missing, and its unit and evidence class do not change.",
+        "responses": {
+          "200": {
+            "description": "One native raster cell.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PixelSample"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query parameters.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown, unpublished, or unavailable under public demo access.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Response exceeds the 1 MB bound; narrow the query.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Data service unavailable. Retry with exponential backoff.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/data/requests": {
+      "post": {
+        "operationId": "requestAcquisition",
+        "tags": [
+          "Service"
+        ],
+        "summary": "Acquisition (not enabled)",
+        "description": "Reserved asynchronous acquisition route. Always returns 503; never charges or queues work. Use the direct query endpoint for published demo data. Future quote/payment/request contracts are described separately and are not advertised as callable MCP tools.",
+        "x-verdant-status": "not_enabled",
+        "responses": {
+          "503": {
+            "description": "acquisition_not_ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "DataRequest": {
+        "type": "object",
+        "properties": {
+          "variables": {
+            "minItems": 1,
+            "maxItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "air_temperature_max"
+              ]
+            }
+          },
+          "region": {
+            "type": "object",
+            "properties": {
+              "bbox": {
+                "type": "array",
+                "prefixItems": [
+                  {
+                    "type": "number",
+                    "minimum": -180,
+                    "maximum": 180
+                  },
+                  {
+                    "type": "number",
+                    "minimum": -90,
+                    "maximum": 90
+                  },
+                  {
+                    "type": "number",
+                    "minimum": -180,
+                    "maximum": 180
+                  },
+                  {
+                    "type": "number",
+                    "minimum": -90,
+                    "maximum": 90
+                  }
+                ],
+                "items": false,
+                "minItems": 4,
+                "maxItems": 4
+              },
+              "crs": {
+                "type": "string",
+                "const": "EPSG:4326"
+              }
+            },
+            "required": [
+              "bbox",
+              "crs"
+            ],
+            "additionalProperties": false
+          },
+          "period": {
+            "type": "object",
+            "properties": {
+              "start": {
+                "type": "string",
+                "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+              },
+              "end": {
+                "type": "string",
+                "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+              }
+            },
+            "required": [
+              "start",
+              "end"
+            ],
+            "additionalProperties": false
+          },
+          "temporal_resolution": {
+            "type": "string",
+            "const": "daily"
+          },
+          "spatial_resolution": {
+            "type": "string",
+            "const": "native"
+          },
+          "units": {
+            "type": "object",
+            "properties": {
+              "air_temperature_max": {
+                "type": "string",
+                "const": "degC"
+              }
+            },
+            "required": [
+              "air_temperature_max"
+            ],
+            "additionalProperties": false
+          },
+          "data_class": {
+            "type": "string",
+            "const": "interpolated_observation"
+          },
+          "format": {
+            "default": "json",
+            "type": "string",
+            "enum": [
+              "json",
+              "csv"
+            ]
+          },
+          "missing_policy": {
+            "type": "string",
+            "const": "preserve"
+          },
+          "source_preference": {
+            "type": "string",
+            "const": "silo"
+          },
+          "dataset_version": {
+            "description": "Pin an immutable published dataset version. Omit to choose a compatible public demo version.",
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+          }
+        },
+        "required": [
+          "variables",
+          "region",
+          "period",
+          "temporal_resolution",
+          "spatial_resolution",
+          "units",
+          "data_class",
+          "missing_policy",
+          "source_preference"
+        ],
+        "additionalProperties": false,
+        "description": "Data meaning is independent of representation and delivery. JSON (default) and CSV are returned inline. Bbox order: west,south,east,north; no antimeridian crossing. Date bounds inclusive; at most 31 days and 10,000 cells; actual coverage must pass resolve. dataset_version pins reproducibility."
+      },
+      "Dataset": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+          },
+          "dataset_key": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "content_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "source_manifest": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "url": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "doi": {
+                  "type": "string"
+                },
+                "member_path": {
+                  "type": "string"
+                },
+                "license": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "sha256"
+              ],
+              "additionalProperties": {}
+            }
+          },
+          "transform_version": {
+            "type": "string"
+          },
+          "data_class": {
+            "type": "string",
+            "enum": [
+              "observation",
+              "interpolated_observation",
+              "forecast",
+              "simulation",
+              "published_aggregate"
+            ]
+          },
+          "variables": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "temporal_resolution": {
+            "type": "string"
+          },
+          "spatial_support": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "bbox": {
+            "anyOf": [
+              {
+                "type": "array",
+                "prefixItems": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "items": false,
+                "minItems": 4,
+                "maxItems": 4
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "period_start": {
+            "type": "string",
+            "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+          },
+          "period_end": {
+            "type": "string",
+            "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+          },
+          "license": {
+            "type": "string"
+          },
+          "attribution": {
+            "type": "string"
+          },
+          "access_level": {
+            "type": "string",
+            "enum": [
+              "demo",
+              "paid",
+              "restricted"
+            ]
+          },
+          "metadata": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "staging",
+              "published",
+              "retired"
+            ]
+          },
+          "published_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "dataset_key",
+          "title",
+          "content_sha256",
+          "source_manifest",
+          "transform_version",
+          "data_class",
+          "variables",
+          "temporal_resolution",
+          "spatial_support",
+          "period_start",
+          "period_end",
+          "license",
+          "attribution",
+          "access_level",
+          "metadata"
+        ],
+        "additionalProperties": {}
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "array",
+                  "items": {
+                    "type": [
+                      "string",
+                      "number"
+                    ]
+                  }
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "path",
+                "message"
+              ],
+              "additionalProperties": {}
+            }
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "additionalProperties": {}
+      },
+      "Observation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "dataset_version_id": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+          },
+          "variable": {
+            "type": "string"
+          },
+          "value": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "unit": {
+            "type": "string"
+          },
+          "observed_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "period_label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "entity_id": {
+            "type": "string"
+          },
+          "dimensions": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "quality_flags": {
+            "type": "array",
+            "items": {}
+          }
+        },
+        "required": [
+          "id",
+          "dataset_version_id",
+          "variable",
+          "value",
+          "unit",
+          "observed_on",
+          "period_label",
+          "entity_id",
+          "dimensions",
+          "quality_flags"
+        ],
+        "additionalProperties": {}
+      },
+      "RasterTile": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+          },
+          "variable": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "observed_on": {
+            "type": "string",
+            "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+          },
+          "width": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 256
+          },
+          "height": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 256
+          },
+          "crs": {
+            "type": "string"
+          },
+          "transform": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "items": false,
+            "minItems": 6,
+            "maxItems": 6
+          },
+          "bbox": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "items": false,
+            "minItems": 4,
+            "maxItems": 4
+          },
+          "dataset_version_id": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+          },
+          "cells": {
+            "maxItems": 65536,
+            "type": "array",
+            "items": {
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "source_window": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              }
+            ],
+            "items": false,
+            "minItems": 4,
+            "maxItems": 4
+          }
+        },
+        "required": [
+          "id",
+          "variable",
+          "unit",
+          "observed_on",
+          "width",
+          "height",
+          "crs",
+          "transform",
+          "bbox",
+          "dataset_version_id",
+          "cells",
+          "source_window"
+        ],
+        "additionalProperties": {}
+      },
+      "Resolution": {
+        "type": "object",
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "available",
+              "coverage_unavailable",
+              "request_too_large",
+              "no_cell_centers",
+              "unsupported_grid"
+            ]
+          },
+          "selection": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "datasetVersion": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "tileIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                    }
+                  },
+                  "rowCount": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "datasetVersion",
+                  "tileIds",
+                  "rowCount"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "acquisitionEnabled": {
+            "type": "boolean",
+            "const": false
+          }
+        },
+        "required": [
+          "available",
+          "reason",
+          "selection",
+          "acquisitionEnabled"
+        ],
+        "additionalProperties": false
+      },
+      "QueryResult": {
+        "type": "object",
+        "properties": {
+          "manifest": {
+            "type": "object",
+            "properties": {
+              "datasetVersion": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+              },
+              "datasetContentSha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "requestSha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "transformVersion": {
+                "type": "string"
+              },
+              "queryVersion": {
+                "type": "string",
+                "const": "native-cell-centers-v1"
+              },
+              "dataClass": {
+                "type": "string"
+              },
+              "crs": {
+                "type": "string",
+                "const": "EPSG:4326"
+              },
+              "missingPolicy": {
+                "type": "string",
+                "const": "preserve"
+              },
+              "spatialSelection": {
+                "type": "string",
+                "const": "cell_center_in_bbox_west_south_inclusive_east_north_exclusive"
+              },
+              "rowCount": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "sourceManifest": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "sha256": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "url": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "doi": {
+                      "type": "string"
+                    },
+                    "member_path": {
+                      "type": "string"
+                    },
+                    "license": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "sha256"
+                  ],
+                  "additionalProperties": {}
+                }
+              },
+              "license": {
+                "type": "string"
+              },
+              "attribution": {
+                "type": "string"
+              },
+              "dataSha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$",
+                "description": "SHA-256 of UTF-8 JSON.stringify(data), using returned row and field order."
+              }
+            },
+            "required": [
+              "datasetVersion",
+              "datasetContentSha256",
+              "requestSha256",
+              "transformVersion",
+              "queryVersion",
+              "dataClass",
+              "crs",
+              "missingPolicy",
+              "spatialSelection",
+              "rowCount",
+              "sourceManifest",
+              "license",
+              "attribution",
+              "dataSha256"
+            ],
+            "additionalProperties": false
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "date": {
+                  "type": "string",
+                  "format": "date",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                },
+                "longitude": {
+                  "type": "number"
+                },
+                "latitude": {
+                  "type": "number"
+                },
+                "variable": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "unit": {
+                  "type": "string"
+                },
+                "tile": {
+                  "type": "string",
+                  "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                },
+                "row": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "col": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "date",
+                "longitude",
+                "latitude",
+                "variable",
+                "value",
+                "unit",
+                "tile",
+                "row",
+                "col"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "manifest",
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "Catalog": {
+        "type": "object",
+        "required": [
+          "datasets"
+        ],
+        "properties": {
+          "datasets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Dataset"
+            }
+          }
+        }
+      },
+      "DatasetDetail": {
+        "type": "object",
+        "required": [
+          "dataset"
+        ],
+        "properties": {
+          "dataset": {
+            "$ref": "#/components/schemas/Dataset"
+          }
+        }
+      },
+      "ObservationPage": {
+        "type": "object",
+        "required": [
+          "datasetVersion",
+          "observations",
+          "nextCursor"
+        ],
+        "properties": {
+          "datasetVersion": {
+            "type": "string"
+          },
+          "observations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Observation"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "TilePage": {
+        "type": "object",
+        "required": [
+          "dataset",
+          "tiles",
+          "nextCursor"
+        ],
+        "properties": {
+          "dataset": {
+            "$ref": "#/components/schemas/Dataset"
+          },
+          "tiles": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                },
+                "variable": {
+                  "type": "string"
+                },
+                "unit": {
+                  "type": "string"
+                },
+                "observed_on": {
+                  "type": "string",
+                  "format": "date",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                },
+                "width": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 256
+                },
+                "height": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 256
+                },
+                "crs": {
+                  "type": "string"
+                },
+                "transform": {
+                  "type": "array",
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "items": false,
+                  "minItems": 6,
+                  "maxItems": 6
+                },
+                "bbox": {
+                  "type": "array",
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "items": false,
+                  "minItems": 4,
+                  "maxItems": 4
+                }
+              },
+              "required": [
+                "id",
+                "variable",
+                "unit",
+                "observed_on",
+                "width",
+                "height",
+                "crs",
+                "transform",
+                "bbox"
+              ],
+              "additionalProperties": {}
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "TileDetail": {
+        "type": "object",
+        "required": [
+          "datasetVersion",
+          "tile"
+        ],
+        "properties": {
+          "datasetVersion": {
+            "type": "string"
+          },
+          "tile": {
+            "$ref": "#/components/schemas/RasterTile"
+          }
+        }
+      },
+      "PixelSample": {
+        "type": "object",
+        "properties": {
+          "datasetVersion": {
+            "type": "string"
+          },
+          "tile": {
+            "type": "string"
+          },
+          "row": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "col": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "value": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "unit": {
+            "type": "string"
+          },
+          "variable": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+          },
+          "crs": {
+            "type": "string"
+          },
+          "transform": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "items": false,
+            "minItems": 6,
+            "maxItems": 6
+          }
+        },
+        "required": [
+          "datasetVersion",
+          "tile",
+          "row",
+          "col",
+          "value",
+          "unit",
+          "variable",
+          "date",
+          "crs",
+          "transform"
+        ],
+        "additionalProperties": false
+      },
+      "Validation": {
+        "type": "object",
+        "required": [
+          "valid",
+          "request",
+          "coverageVerified",
+          "acquisitionEnabled",
+          "message"
+        ],
+        "properties": {
+          "valid": {
+            "const": true
+          },
+          "request": {
+            "$ref": "#/components/schemas/DataRequest"
+          },
+          "coverageVerified": {
+            "const": false
+          },
+          "acquisitionEnabled": {
+            "const": false
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "Health": {
+        "type": "object",
+        "properties": {
+          "service": {
+            "type": "string",
+            "const": "verdant-api"
+          },
+          "status": {
+            "type": "string",
+            "const": "ok"
+          },
+          "scope": {
+            "type": "string",
+            "const": "process"
+          },
+          "environment": {
+            "type": "string"
+          },
+          "paymentMode": {
+            "type": "string"
+          },
+          "capabilities": {
+            "type": "object",
+            "properties": {
+              "requestValidation": {
+                "type": "boolean"
+              },
+              "acquisition": {
+                "type": "boolean"
+              },
+              "payments": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "requestValidation",
+              "acquisition",
+              "payments"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "service",
+          "status",
+          "scope",
+          "environment",
+          "paymentMode",
+          "capabilities"
+        ],
+        "additionalProperties": false
+      },
+      "Capabilities": {
+        "type": "object",
+        "properties": {
+          "apiVersion": {
+            "type": "string"
+          },
+          "features": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          },
+          "query": {
+            "type": "object",
+            "properties": {
+              "sources": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "variables": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "dataClasses": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "crs": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "temporalResolutions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "spatialResolutions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "units": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "formats": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "defaultFormat": {
+                "type": "string"
+              },
+              "delivery": {
+                "type": "string"
+              },
+              "missingPolicy": {
+                "type": "string"
+              },
+              "access": {
+                "type": "string"
+              },
+              "limits": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": "number"
+                }
+              },
+              "spatialSelection": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "sources",
+              "variables",
+              "dataClasses",
+              "crs",
+              "temporalResolutions",
+              "spatialResolutions",
+              "units",
+              "formats",
+              "defaultFormat",
+              "delivery",
+              "missingPolicy",
+              "access",
+              "limits",
+              "spatialSelection"
+            ],
+            "additionalProperties": false
+          },
+          "links": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string",
+              "format": "uri"
+            }
+          }
+        },
+        "required": [
+          "apiVersion",
+          "features",
+          "query",
+          "links"
+        ],
+        "additionalProperties": false
+      }
+    }
+  }
+}

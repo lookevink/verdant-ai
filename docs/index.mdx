@@ -1,0 +1,25 @@
+---
+title: "Climate data with its evidence intact"
+description: "Query versioned climate data through one contract, directly from HTTP or an agent."
+---
+
+Verdant serves climate data with explicit units, spatial support, missingness, and source lineage. An agent describes the data it needs; the response includes the values and the evidence needed to interpret them.
+
+The current API serves two published public demo datasets: SILO maximum air temperature around Mildura on **1 January 2003**, and CSIRO observed irrigation-program evidence from **2003–2005**. These have different meanings and are not interchangeable.
+
+<Steps>
+  <Step title="Discover">Read capabilities and the dataset catalog to learn which operations and coverage actually exist.</Step>
+  <Step title="Resolve">Check a query against published data. Pin the returned immutable dataset version.</Step>
+  <Step title="Query">Receive data directly as JSON or CSV, with provenance and checksums.</Step>
+</Steps>
+
+<CardGroup cols={2}>
+  <Card title="Make your first query" icon="terminal" href="/quickstart">Return real climate values in an HTTP response.</Card>
+  <Card title="Connect an agent" icon="robot" href="/agents/mcp">Use Mintlify documentation search and Verdant data tools.</Card>
+</CardGroup>
+
+<Note>
+Public demo reads are free and need no API key. Acquisition, quotes, payments, and asynchronous delivery are not enabled yet. The capabilities endpoint is the authoritative feature inventory; valid syntax alone does not mean data is available.
+</Note>
+
+The [OpenAPI 3.1 specification](https://api.verdant-ai.com/api/v1/openapi.json) and this reference are generated from the same shared runtime schemas. `/api/v1` defines the major contract version. Additive fields may appear; clients should ignore fields they do not recognize.

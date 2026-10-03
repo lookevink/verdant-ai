@@ -1,0 +1,23 @@
+---
+title: "Errors and compatibility"
+description: "Machine-readable failures, limits and retry rules."
+---
+
+REST errors contain a stable machine-readable `error` string, with optional `message` and validation `issues`. Never parse human-readable message text to decide what to do.
+
+| HTTP status | Meaning | Client action |
+| --- | --- | --- |
+| `400` | Malformed JSON, empty body, or invalid query parameters | Correct the request. |
+| `404` | Dataset/tile absent or inaccessible under public demo access | Inspect the catalog; do not infer private data existence. |
+| `413` | Request, row count, date range, or response exceeds a bound | Narrow the query or page size. |
+| `415` | Incorrect media type on a query POST | Send `Content-Type: application/json`. |
+| `422` | Invalid schema or unsupported/incomplete query | Inspect issues or call coverage resolution. |
+| `503` | Data service unavailable or acquisition intentionally disabled | Back off for a service outage; do not retry `acquisition_not_ready` expecting a purchase. |
+
+Coverage resolution returns `200` even when `available` is false. Its `reason` is one of `coverage_unavailable`, `request_too_large`, `no_cell_centers`, or `unsupported_grid`. No result is silently truncated to make the query succeed.
+
+Reads and direct queries have no purchase side effects. Retry transient failures with exponential backoff and a bounded retry count. Future payment retries will require durable idempotency and reconciliation; they must not automatically re-charge an ambiguous settlement.
+
+The `/api/v1` path defines the major version. Clients should accept additive response fields and inspect capabilities for new operations. Removing or changing the meaning of a documented field requires a new major contract. Stable published dataset IDs can be pinned across API calls. The specification's `info.version` identifies the contract release.
+
+MCP tools return structured JSON and mark failures with `isError`. Tool descriptions and input schemas use the same contract as REST. They never expose infrastructure credentials or raw database error details.

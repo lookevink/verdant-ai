@@ -1,0 +1,46 @@
+---
+title: "Data meaning and reproducibility"
+description: "The scientific guarantees behind each request and response."
+---
+
+## Query dimensions
+
+| Field | Meaning |
+| --- | --- |
+| `variables` | Physical quantities requested. The direct-query adapter currently admits only `air_temperature_max`. |
+| `region.bbox` | `[west, south, east, north]`, longitude then latitude, EPSG:4326. No antimeridian crossing. |
+| `period` | Inclusive source-calendar dates in `YYYY-MM-DD`; dates are not silently converted to UTC instants. |
+| `temporal_resolution` | Source time support; currently `daily`. |
+| `spatial_resolution` | Currently `native`. No resampling or resolution upgrade is implied. |
+| `units` | Canonical units per variable; currently `degC`. No implicit conversion from other units. |
+| `data_class` | Evidence meaning. SILO raster values are `interpolated_observation`, not direct station or farm measurements. |
+| `missing_policy` | `preserve`; no filling, interpolation, or missing-to-zero conversion. |
+| `source_preference` | Currently `silo`; clients cannot submit arbitrary URLs. |
+| `dataset_version` | Optional immutable version pin, returned by coverage resolution. |
+| `format` | Representation: `json` by default, or `csv`. Independent of scientific meaning. |
+
+Unknown fields and unsupported enum values return `422`. Date order, valid calendar days and bbox order are validated at runtime as well as field-level schema validation.
+
+## Spatial selection
+
+Direct queries select native **cell centers** within the bounding box: west and south inclusive; east and north exclusive. Coordinates are rounded to nine decimal places to make edge comparisons stable. At least one cell center must be selected. A tiny bbox is not expanded to the nearest pixel.
+
+The first adapter requires one tile to cover the complete requested bbox on each date. It rejects missing dates, partial coverage, rotated grids, and requests that need mosaicking. It does not silently return a subset. Limits are 31 inclusive days, 10,000 returned cells, a 16 KiB request body, and a 1 MB response body. A dataset's query index is bounded to 1,000 tiles.
+
+Raster arrays use top-down row-major indexing: `cells[row * width + col]`. For affine `[a,b,c,d,e,f]`, a center is `x=a*(col+0.5)+b*(row+0.5)+c`, `y=d*(col+0.5)+e*(row+0.5)+f`. Row and column indices are zero-based.
+
+## Version and evidence
+
+Published dataset contents are immutable. Corrections require a new version. Unpinned resolution chooses the newest compatible published demo version, with a stable ID tie-breaker; pin the returned version for repeatability.
+
+Every JSON query manifest carries:
+
+- Dataset version and normalized-content SHA-256.
+- Validated request SHA-256 and the versioned query/transform rules.
+- Source references and source-file hashes.
+- Data class, coordinate system, missing-value policy and spatial-selection rule.
+- Row count, license, attribution, and a checksum of the returned data array.
+
+`manifest.dataSha256` hashes UTF-8 `JSON.stringify(data)` in the returned row and field order. `Content-Digest` hashes the exact HTTP representation bytes instead. These are different checksums for different purposes. A CSV client follows the `Link` response header to obtain dataset provenance; JSON is the preferred representation when the manifest must travel in the same body as the values.
+
+Trial evidence preserves its native season, treatment and management-history dimensions. Weather context does not establish the causal effect of an irrigation strategy. Missing quality valuations are not observed zero effects. This API does not claim historical decision-time availability when the sources do not establish it.

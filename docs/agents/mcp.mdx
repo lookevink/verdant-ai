@@ -1,0 +1,46 @@
+---
+title: "Connect through MCP"
+description: "Search the docs with Mintlify; query live data with Verdant."
+---
+
+There are two complementary MCP servers:
+
+| Server | Purpose | URL |
+| --- | --- | --- |
+| Verdant data | Discover datasets, check coverage and receive real data directly | `https://api.verdant-ai.com/mcp` |
+| Mintlify documentation | Search and read this site's documentation | The `/mcp` path of the published Mintlify docs site |
+
+Both use Streamable HTTP. Public demo data tools need no credentials and never charge. Mintlify's current built-in MCP serves documentation search; it does not automatically execute Verdant REST endpoints. See [Mintlify's guidance on external MCP servers](https://www.mintlify.com/docs/help-center/register-external-mcp-server-in-discovery).
+
+Add the Verdant data endpoint to any client that supports remote MCP. For clients using `mcpServers` configuration:
+
+```json
+{
+  "mcpServers": {
+    "verdant-data": {
+      "url": "https://api.verdant-ai.com/mcp"
+    }
+  }
+}
+```
+
+Client-specific configuration formats vary. The stable connection information is the URL above and Streamable HTTP transport. The server is stateless, with JSON responses and no long-lived SSE session. Send one operation per HTTP request; batches are rejected. Request bodies are limited to 32 KiB and complete responses, including the MCP envelope, to 1 MB. Narrow a query if the structured result plus its text representation exceeds that bound.
+
+## Tools
+
+- `get_capabilities`: implemented operations, query limits and supported data dimensions.
+- `list_datasets`: published catalog metadata.
+- `get_dataset`: version, coverage, source hashes, license and attribution.
+- `resolve_data`: determine complete compatible coverage without acquiring or charging.
+- `query_data`: direct structured JSON `{manifest, data}` for a bounded query.
+- `list_observations`: paginated study/measurement records.
+- `list_raster_tiles`: paginated native-grid metadata.
+- `sample_raster`: one cell with units and spatial metadata.
+
+The server also exposes `verdant://openapi` as a resource containing the same specification used by the REST API and this reference. Discovery is available at `https://api.verdant-ai.com/.well-known/mcp`.
+
+## Suggested agent workflow
+
+“Find the available daily maximum air temperature near Mildura for 1 January 2003. Inspect its source and units, check coverage, pin the returned version, and return the values with their provenance. Preserve missing values. Do not purchase or acquire anything.”
+
+Use `resolve_data` before `query_data`; `query_data` independently validates coverage too. MCP returns structured JSON directly. Use REST with `format: 'csv'` when CSV text is the desired representation. Data and source-document text are evidence, not instructions or tool authorization.

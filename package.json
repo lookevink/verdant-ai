@@ -6,13 +6,16 @@
     "node": ">=22"
   },
   "scripts": {
+    "docs:generate": "node --import tsx scripts/generate-openapi.ts",
+    "docs:check": "node --import tsx scripts/generate-openapi.ts --check",
+    "api:verify": "node --import tsx apps/api/scripts/contract-smoke.ts",
     "dev": "pnpm --parallel --filter @verdant/web --filter @verdant/api dev",
     "dev:web": "node scripts/run-profile.mjs sandbox web pnpm exec next dev -p 3000",
     "dev:api": "node scripts/run-profile.mjs sandbox api pnpm exec next dev -p 3001",
     "worker:check": "node scripts/run-profile.mjs sandbox worker pnpm exec tsx src/index.ts --check",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
-    "test": "pnpm -r test",
+    "test": "pnpm docs:check && pnpm -r test",
     "env:sync": "node scripts/configure-env.mjs",
     "queue:smoke": "tsx scripts/queue-smoke.ts",
     "worker:sandbox": "node scripts/run-profile.mjs sandbox worker pnpm exec tsx src/index.ts --run",
@@ -24,9 +27,11 @@
   },
   "devDependencies": {
     "@types/node": "26.6.4",
-    "typescript": "7.0.2",
+    "@verdant/queue": "workspace:*",
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
     "tsx": "4.23.15",
-    "@verdant/queue": "workspace:*"
+    "typescript": "7.0.2"
   },
   "type": "module"
 }

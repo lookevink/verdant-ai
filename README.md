@@ -2,6 +2,22 @@
 
 Clean climate data for agents, with requested formats, provenance and MPP access.
 
+## Direct data API and documentation
+
+The API at `https://api.verdant-ai.com` exposes a generated OpenAPI 3.1 contract at `/api/v1/openapi.json`. Shared Zod schemas in `packages/contracts` define runtime validation and the generated reference. `pnpm docs:generate` updates `docs/openapi.json`; `pnpm docs:check` detects drift and runs as part of `pnpm test`.
+
+- `GET /api/v1/capabilities`: supported query dimensions, delivery limits and actual feature availability.
+- `GET /api/v1/datasets` and `GET /api/v1/datasets/{id}`: published catalog, coverage and provenance.
+- `POST /api/v1/data/resolve`: check complete compatible published coverage without purchasing or acquiring anything.
+- `POST /api/v1/data/query`: return data **directly in the response**, defaulting to JSON `{manifest,data}`. CSV is an alternate response representation, with provenance links and digest headers. A download is optional client behavior, not a required delivery step.
+- `/mcp`: eight read-only data tools using the same query implementation; discovery at `/.well-known/mcp`.
+
+Direct queries currently support SILO daily maximum temperature in Celsius on a native EPSG:4326 grid. The imported demo covers 1 January 2003 near Mildura. Queries are bounded to 31 days, 10,000 cells and 1 MB, require complete coverage, and support an immutable `dataset_version` pin. Study observations and native raster endpoints remain available separately. No endpoint silently converts a cache miss into paid acquisition.
+
+Mintlify lives in the monorepo's `docs/` directory with `docs.json`, guides and generated OpenAPI. Configure the existing Mintlify site's repository as `lookevink/verdant-ai`, branch `main`, path `/docs`; see [deployment setup](docs/README.md). Hosted Mintlify deployment still requires connection to the user's existing workspace. Its built-in search MCP covers documentation; the API's own MCP supplies live data tools.
+
+Run `pnpm api:verify <origin>` to check the hosted contract, direct JSON/CSV checksums, real-data coverage and MCP/REST parity. The website request form queries real data inline and separately offers syntax-only validation.
+
 ## Monorepo
 
 | Workspace | Runtime | Responsibility |
@@ -65,7 +81,7 @@ Target team: **Kevin Personal Projects** (`lookevinks-projects`). Two projects: 
 pnpm vercel:sync
 ```
 
-This script links/configures these projects, obtains the API's assigned domain, updates the local production origin, and uploads per-service environment values. Production uses `.env.production`; development/preview use `.env.local`. Secrets are uploaded through stdin and marked sensitive in production/preview. It does not deploy. Both projects now exist and are linked, and development/preview uploads have completed. Production sync was partially blocked by Vercel: `kevin-sendblue` lacks permission to create production environment variables. An owner must grant project-admin access or import each generated app `.env.production` into its corresponding project, scoped to production only. Then rerun sync to reconcile values. Environment changes apply to the next deployment.
+This script links/configures these projects, obtains the API's assigned domain, updates the local production origin, and uploads per-service environment values. Production uses `.env.production`; development/preview use `.env.local`. Secrets are uploaded through stdin and marked sensitive in production/preview. It does not deploy. Both projects are linked to GitHub `main` and deploy automatically on push. Production environment values are present and the deployed database reads and website proxy were verified on 3 October 2026. Environment changes apply to the next deployment; some environment-management actions may still require project-admin access.
 
 For paired previews, deploy the API preview first, then set the web preview's `API_ORIGIN` to that exact deployment URL before building. The sync script deliberately excludes the localhost origin from hosted previews. Vercel web builds fail if no API origin is configured. If preview deployment protection is enabled, configure authenticated server-to-server access before testing the proxy.
 
@@ -98,7 +114,7 @@ References: [Stripe MPP](https://docs.stripe.com/payments/machine/mpp), [Stripe 
 
 ## Current scope
 
-Implemented: environment distribution, request validation, pgmq queue/leases/retries, authenticated diagnostic enqueue/status, worker polling for diagnostics, Stripe MPP sandbox probe code, and verification scripts. Live queue/Supabase checks are working in both configuration profiles, including API → queue → worker completion. Production builds, typechecks and six tests pass. Stripe payment roundtrip and completion of Vercel production environment sync still require the external account access described above.
+Implemented: the versioned read/query contract, generated OpenAPI, Mintlify monorepo documentation, direct JSON/CSV responses, read-only MCP, environment distribution, pgmq queue/leases/retries, authenticated diagnostic enqueue/status, worker polling for diagnostics, Stripe MPP sandbox probe code, and verification scripts. Live queue/Supabase checks work in both profiles, including API → queue → worker completion. Pi needs `ANTHROPIC_API_KEY` and `PI_MODEL`; the payment roundtrip needs a claimed Stripe sandbox and MPP business profile. These prerequisites are separate from hosting the public demo API.
 
 `POST /api/v1/data/requests` currently returns 503 and never charges or enqueues work. Climate schemas, handoff import, catalog/observation/raster APIs and transactional publication RPCs are implemented; see [database setup and verification](supabase/README.md). Pi execution, source acquisition, map rendering, backtests, quote lifecycle HTTP routes and paid data fulfillment are still pending.
 

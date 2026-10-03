@@ -1,0 +1,60 @@
+---
+title: "Query real data"
+description: "Discover coverage and get values directly in the response."
+---
+
+## 1. Discover
+
+```bash
+curl https://api.verdant-ai.com/api/v1/capabilities
+curl https://api.verdant-ai.com/api/v1/datasets
+```
+
+Catalog entries describe actual date coverage, units, source files and hashes, licenses, and spatial support. `demo` data can be read without credentials. Catalog visibility for `paid` data is not an entitlement to read it.
+
+## 2. Resolve and query
+
+This example checks coverage, pins the chosen version, and receives the values directly. There is no download step. `format` defaults to `json` when omitted.
+
+```javascript
+const api = 'https://api.verdant-ai.com';
+const request = {
+  variables: ['air_temperature_max'],
+  region: { bbox: [142.30, -34.45, 142.40, -34.35], crs: 'EPSG:4326' },
+  period: { start: '2003-01-01', end: '2003-01-01' },
+  temporal_resolution: 'daily',
+  spatial_resolution: 'native',
+  units: { air_temperature_max: 'degC' },
+  data_class: 'interpolated_observation',
+  missing_policy: 'preserve',
+  source_preference: 'silo'
+};
+
+async function post(path, body) {
+  const response = await fetch(api + path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  const result = await response.json();
+  if (!response.ok) throw new Error(JSON.stringify(result));
+  return result;
+}
+
+const coverage = await post('/api/v1/data/resolve', request);
+if (!coverage.available) throw new Error(coverage.reason);
+const result = await post('/api/v1/data/query', {
+  ...request,
+  dataset_version: coverage.selection.datasetVersion
+});
+console.log(result.data);
+console.log(result.manifest);
+```
+
+The result is `{ manifest, data }`. Each row has `date`, `longitude`, `latitude`, `variable`, `value`, `unit`, `tile`, `row`, and `col`. `value: null` is missing data; `value: 0` is an observed numerical zero. Coordinates are native cell centers, not a claim of farm-level measurement.
+
+## 3. Use CSV when useful
+
+Send the same request to `/api/v1/data/query` with `format: 'csv'` and read `response.text()`. It returns CSV **in the response body**. Saving it to a file is the client's choice. Empty CSV value fields mean missing; numeric zero remains zero. The headers include `Verdant-Dataset-Version`, `Verdant-Request-SHA256`, `Content-Digest`, and a `Link` to source metadata.
+
+For tabular trial evidence, list `/api/v1/datasets`, select the CSIRO version, and follow `/api/v1/datasets/{id}/observations?limit=100`. Continue with `after=nextCursor` until `nextCursor` is null. Do not treat harvest-season outcomes as daily measurements.

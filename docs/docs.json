@@ -1,0 +1,20 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "Verdant",
+  "colors": { "primary": "#235C3F", "light": "#4C8B61", "dark": "#6FAD82" },
+  "navigation": {
+    "tabs": [
+      { "tab": "Guides", "groups": [
+        { "group": "Start", "pages": ["index", "quickstart"] },
+        { "group": "Contract", "pages": ["concepts/data-contract", "concepts/delivery", "concepts/errors", "concepts/request-lifecycle"] },
+        { "group": "Agents", "pages": ["agents/mcp"] }
+      ] },
+      { "tab": "API reference", "openapi": "openapi.json" }
+    ],
+    "global": { "anchors": [ { "anchor": "Website", "href": "https://verdant-ai.com", "icon": "leaf" } ] }
+  },
+  "navbar": { "primary": { "type": "button", "label": "Query capabilities", "href": "https://api.verdant-ai.com/api/v1/capabilities" } },
+  "contextual": { "options": ["copy", "view", "mcp", "cursor", "vscode"] },
+  "api": { "playground": { "display": "interactive", "proxy": true } }
+}
