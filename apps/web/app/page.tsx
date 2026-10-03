@@ -1,16 +1,171 @@
+import { Fragment, type CSSProperties } from "react";
+import { exampleRequest } from "@verdant/contracts";
+import { Field } from "./field";
 import { RequestForm } from "./request-form";
+
+const vars = (values: Record<string, string | number>) => values as CSSProperties;
+
+const manifesto = "Climate data arrives in every shape: grids, stations, spreadsheets, archives. Units drift. Resolutions clash. Calendars disagree. Your agent shouldn't have to untangle any of it. Verdant retrieves, normalizes and delivers exactly what was asked for, with its _evidence _intact.".split(" ");
+const fragments = ["°F", "kelvin", "EPSG:3577", ".nc", "−9999", "0.05°", "NaN → 0", ".tif", "mm/day", "UTC+10", ".xlsx", "monthly?"];
+const stages = ["Request", "Retrieve", "Normalize", "Validate", "Deliver"];
+const tape = "SILO · daily maximum air temperature · EPSG:4326 · degrees Celsius · native grid · missing values preserved · CSV · JSON · ";
+const steps = [
+  { title: "Request", live: true, text: "Name the variable, place, period, units and format. Meaning stays separate from serialization, so “temperature as CSV” is never ambiguous." },
+  { title: "Retrieve", text: "Compatible published data is reused first. On a miss, a bounded acquisition job fetches from supported sources only." },
+  { title: "Normalize", text: "Units, calendars, spatial support and missing values are reconciled and documented, never quietly relabeled or filled." },
+  { title: "Validate", text: "Deterministic checks confirm variables, dimensions, units and coverage before anything is published." },
+  { title: "Deliver", text: "CSV or JSON with a provenance manifest and checksum. The next compatible request reuses the same version." },
+];
+const facets = [
+  ["Source", "SILO"], ["Variable", "Daily maximum air temperature"], ["Units", "Degrees Celsius"], ["Resolution", "Native grid · daily"],
+  ["Coordinates", "WGS84 · EPSG:4326"], ["Data class", "Interpolated observation"], ["Missing data", "Preserved"], ["Formats", "CSV · JSON"],
+];
+const nevers = ["Missing values → zero", "Coarse pixel → fine measurement", "Undocumented interpolation"];
+
+function Words({ text, from = 0 }: { text: string; from?: number }) {
+  return text.split(" ").map((word, i) => <Fragment key={i}>{i > 0 && " "}<span className="h-word"><span style={vars({ "--i": from + i })}>{word}</span></span></Fragment>);
+}
+
+function Mark() {
+  return <svg className="mark" viewBox="0 0 32 32" aria-hidden="true">
+    <path className="mark-stem" d="M16 30V14" />
+    <path className="mark-leaf" d="M16 19C16 12 11.5 7.5 4 7.5 4 15 8.5 19 16 19Z" />
+    <path className="mark-leaf mark-leaf-r" d="M16 15.5C16 9 20 4.5 27.5 4.5 27.5 11 23.5 15.5 16 15.5Z" />
+  </svg>;
+}
+
+function Sprig() {
+  return <svg className="sprig" viewBox="0 0 40 40" aria-hidden="true"><path d="M20 20C14 14 16 4 20 0c4 4 6 14 0 20Zm0 0c6-6 16-4 20 0-4 4-14 6-20 0Zm0 0c6 6 4 16 0 20-4-4-6-14 0-20Zm0 0c-6 6-16 4-20 0 4-4 14-6 20 0Z" /></svg>;
+}
+
+function Arrow() {
+  return <svg className="arrow" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 10h13M11 4.5 16.5 10 11 15.5" /></svg>;
+}
+
+// Deterministic grass silhouette for soft section edges; three groups sway out of phase.
+function GrassEdge({ className }: { className: string }) {
+  let seed = 11;
+  const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const groups: string[] = ["", "", ""];
+  for (let i = 0; i < 220; i++) {
+    const x = Math.round(i * 9.1 + random() * 5), h = Math.round(16 + random() * 46), lean = Math.round((random() - 0.5) * 18), w = 2 + Math.round(random() * 2);
+    groups[i % 3] += `M${x - w} 64Q${x + Math.round(lean * 0.3)} ${64 - Math.round(h * 0.6)} ${x + lean} ${64 - h}Q${x + Math.round(lean * 0.3) + 1} ${64 - Math.round(h * 0.6)} ${x + w} 64Z`;
+  }
+  return <svg className={`grass-edge ${className}`} viewBox="0 0 2000 64" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+    {groups.map((d, i) => <path key={i} d={d} />)}<rect y="62" width="2000" height="2" />
+  </svg>;
+}
+
+function RegionMap() {
+  return <svg className="region" viewBox="0 0 300 180" aria-hidden="true">
+    {Array.from({ length: 60 }, (_, i) => {
+      const x = i % 10, y = Math.floor(i / 10);
+      return <rect key={i} x={x * 30 + 1} y={y * 30 + 1} width="28" height="28" rx="4" style={vars({ "--d": `${(x + y) * 90}ms`, "--o": 0.12 + ((x * 7 + y * 3) % 5) * 0.07 })} />;
+    })}
+    <path className="region-box" d="M92 62h116v62H92Z" />
+    <circle className="region-ping" cx="146" cy="88" r="6" /><circle className="region-pin" cx="146" cy="88" r="4" />
+  </svg>;
+}
+
 export default function Page() {
-  return <main>
-    <header><a className="brand" href="/">◈ verdant<span>AI</span></a><span className="badge">Developer preview</span></header>
-    <section className="intro"><p className="eyebrow">CLIMATE DATA, READY TO USE</p>
-      <h1>Your agent has a question.<br /><em>Give it better data.</em></h1>
-      <p className="description">Specify the place, period and format. Verdant is being built to retrieve, normalize and deliver climate data with its evidence intact.</p>
-    </section>
-    <section className="workspace"><div className="context"><p className="eyebrow">01 / DEFINE YOUR REQUEST</p>
-      <h2>One clear contract.<br />Every source accounted for.</h2>
-      <p>Start with daily maximum temperature around Mildura, Australia. Validate the request before acquisition and payment are connected.</p>
-      <dl><dt>Source</dt><dd>SILO</dd><dt>Units</dt><dd>Degrees Celsius</dd><dt>Resolution</dt><dd>Native grid · daily</dd><dt>Missing data</dt><dd>Preserved</dd></dl>
-    </div><RequestForm /></section>
-    <footer>Request → Retrieve → Normalize → Validate → Deliver<span>Foundation build · no purchases or acquisition yet</span></footer>
-  </main>;
+  return <>
+    <nav className="nav" aria-label="Primary">
+      <a className="brand" href="#top"><Mark />verdant<span> AI</span></a>
+      <div className="nav-links"><a href="#how">How it works</a><a href="#evidence">Evidence</a><a href="#request">Request</a></div>
+      <a className="nav-cta" href="#request">Try the contract <Arrow /></a>
+    </nav>
+
+    <main>
+      <section className="hero" id="top">
+        <div className="sun" aria-hidden="true" />
+        <div className="hero-copy">
+          <p className="chip"><span className="pulse" />Developer preview · Climate data, ready to use</p>
+          <h1><span className="line"><Words text="Your agent has a question." /></span>
+            <span className="line serif"><Words text="Give it" from={5} />{" "}<span className="underlined"><Words text="better data." from={7} /><svg className="swash" viewBox="0 0 400 24" preserveAspectRatio="none" aria-hidden="true"><path d="M4 18C80 6 170 4 250 9s110 6 146 1" /></svg></span></span></h1>
+          <div className="hero-row">
+            <p className="lede">Specify the place, period and format. Verdant is being built to retrieve, normalize and deliver climate data with its evidence intact.</p>
+            <div className="actions"><a className="button" href="#request">Validate a request <Arrow /></a><a className="button ghost" href="#how">How it works</a></div>
+          </div>
+        </div>
+        <div className="meadow"><div className="ground" aria-hidden="true" /><Field /></div>
+        <div className="hero-foot"><span className="scroll-cue"><i />Scroll</span><span>Mildura, AU · 34.42°S 142.35°E</span></div>
+      </section>
+
+      <section className="manifesto" aria-labelledby="problem">
+        <div className="manifesto-stage">
+          <div className="fragments" aria-hidden="true">
+            {fragments.map((text, i) => <span key={text} style={vars({ "--i": i, "--x": `${4 + (i * 37) % 86}%`, "--y": `${6 + (i * 53) % 82}%`, "--r": `${(i * 7) % 13 - 6}deg` })}>{text}</span>)}
+          </div>
+          <div className="fireflies" aria-hidden="true">
+            {Array.from({ length: 16 }, (_, i) => <i key={i} style={vars({ "--x": `${(i * 41) % 97}%`, "--y": `${(i * 29) % 91}%`, "--dx": `${(i % 3 - 1) * 50 + 20}px`, "--t": `${7 + (i % 5) * 1.7}s`, "--b": `${1.6 + (i % 4) * 0.8}s` })} />)}
+          </div>
+          <p className="eyebrow" id="problem"><b>01</b>The problem</p>
+          <p className="manifesto-text">{manifesto.map((word, i) => {
+            const em = word.startsWith("_");
+            return <span key={i} className={em ? "w em" : "w"} style={vars({ "--i": i, "--n": manifesto.length })}>{em ? word.slice(1) : word} </span>;
+          })}</p>
+        </div>
+      </section>
+
+      <section className="marquee" aria-label="Request, retrieve, normalize, validate, deliver">
+        <GrassEdge className="edge-verdant" />
+        <div className="drift" aria-hidden="true"><div className="track">
+          {[0, 1].map(copy => stages.map((stage, i) => <span key={`${copy}${stage}`} className={i % 2 ? "serif" : undefined}>{stage}<Sprig /></span>))}
+        </div></div>
+        <div className="tape" aria-hidden="true"><div className="track reverse"><span>{tape.repeat(3)}</span><span>{tape.repeat(3)}</span></div></div>
+      </section>
+
+      <section className="how" id="how">
+        <div className="section-head">
+          <div><p className="eyebrow"><b>02</b>How it works</p><h2>From question <em>to clean data.</em></h2></div>
+          <p>Agents describe what they need. Verdant handles retrieval, reconciliation and checks, then hands back the exact representation requested, with nothing silently changed.</p>
+        </div>
+        <ol className="steps">
+          {steps.map((step, i) => <li className="step" key={step.title}>
+            <span className="step-n">0{i + 1}</span>
+            <h3>{step.title}</h3>
+            <p>{step.text}</p>
+            <span className={step.live ? "status live" : "status"}><i />{step.live ? "Live in preview" : "In development"}</span>
+          </li>)}
+        </ol>
+      </section>
+
+      <section className="evidence" id="evidence">
+        <div className="evidence-frame">
+          <p className="eyebrow"><b>03</b>Provenance</p>
+          <h2 className="giant"><span>Evidence</span> <em>intact.</em></h2>
+          <div className="evidence-body">
+            <p>Every delivery carries the meaning of its numbers: where they came from, what they measure and what was done to them. Your agent can cite it and check it.</p>
+            <ul className="nevers">{nevers.map((never, i) => <li key={never} style={vars({ "--i": i })}>Never <s>{never}</s></li>)}</ul>
+          </div>
+          <p className="facets-label">The first supported request</p>
+          <dl className="facets">{facets.map(([label, value], i) => <div key={label} style={vars({ "--i": i })}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
+        </div>
+      </section>
+
+      <section className="request" id="request">
+        <div className="section-head">
+          <div><p className="eyebrow"><b>04</b>Try the contract</p><h2>One clear contract. <em>Every source accounted for.</em></h2></div>
+        </div>
+        <div className="workspace">
+          <div className="context">
+            <RegionMap />
+            <p>Start with daily maximum temperature around Mildura, Australia. Validate the request before acquisition and payment are connected.</p>
+            <dl><dt>Source</dt><dd>SILO</dd><dt>Units</dt><dd>Degrees Celsius</dd><dt>Resolution</dt><dd>Native grid · daily</dd><dt>Missing data</dt><dd>Preserved</dd></dl>
+          </div>
+          <RequestForm exampleRequest={exampleRequest} />
+        </div>
+      </section>
+    </main>
+
+    <footer className="site-footer">
+      <GrassEdge className="edge-soil" />
+      <div className="footer-row">
+        <p>{stages.join(" → ")}</p>
+        <p>Foundation build · no purchases or acquisition yet</p>
+        <a href="#top">Back to top ↑</a>
+      </div>
+      <p className="wordmark" aria-hidden="true">{[..."verdant"].map((letter, i) => <span key={i} style={vars({ "--i": i })}>{letter}</span>)}</p>
+    </footer>
+  </>;
 }
