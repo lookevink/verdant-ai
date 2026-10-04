@@ -1,0 +1,12 @@
+Verdant OG image
+Generated with the built-in image generator on 2026-10-04.
+Production asset: apps/web/public/brand/verdant-og.jpg (1200 x 630, optimized JPEG).
+The optional Vertex credentials were not available in this checkout.
+
+Prompt:
+Use case: ads-marketing
+Asset type: Open Graph social preview for Verdant AI, a climate data API and MCP service for AI agents.
+Create a finished exquisitely art-directed landscape social card, exactly 1200 by 630 pixels aspect ratio (1.905:1), crisp readable typography. Palette: warm pale ivory #f3faea, deep forest green #072a1a, fern #12813a, spring lime #c6f36b. Premium editorial botanical technology aesthetic, calm and confident.
+Layout: generous safe margins, about 70px all around. Top left a small simple two-leaf sprout mark beside the exact wordmark "verdant AI". Left two-thirds dominant headline in large beautiful typography over three lines: "Climate data" / "for AI agents." Use bold contemporary tight sans serif for first line and sophisticated italic editorial serif for second line. Under headline smaller clear text "Ready to query. Evidence intact." Bottom left small neatly spaced type "API  /  MCP  /  CSV  /  JSON". Top right small domain "verdant-ai.com".
+Right side and bottom: refined cinematic lush meadow illustration with gracefully curving blades of grass, softly lit rolling terrain, tiny warm yellow wildflowers, subtle atmospheric mint sky. One translucent subtle geospatial grid lightly tracing the lower-right terrain conveys structured climate data, without fake dashboards, numbers, or additional labels. Keep the entire left text area very clean pale ivory with excellent dark text contrast. The meadow softly extends along the bottom edge below the copy.
+No rounded card frame, no mockup surface, no buttons, no extra words, no watermark. All specified text must be spelled exactly. Elegant sparse composition instantly legible as a small link preview.

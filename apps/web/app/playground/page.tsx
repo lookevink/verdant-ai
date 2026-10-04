@@ -1,11 +1,12 @@
-import type { Metadata } from "next";
 import { Playground } from "./playground";
+import { pageMetadata } from "../seo";
 import "./playground.css";
 
-export const metadata: Metadata = {
-  title: "Playground · Verdant AI",
-  description: "Ask questions in plain language; Verdant's analyst gathers the evidence, documents its methodology and answers with charts.",
-};
+export const metadata = pageMetadata(
+  "Climate & Farm Data Playground",
+  "Ask climate and farm data questions in plain language. Verdant's AI analyst gathers evidence and returns sourced answers, charts, methodology and downloadable data.",
+  "/playground",
+);
 
 export default function Page() {
   return <Playground />;

@@ -5,6 +5,9 @@ import { Sprout } from "./playground/sprout";
 import { SkyToggle } from "./sky";
 import { SoundToggle } from "./sound";
 import { RequestForm } from "./request-form";
+import { pageMetadata, siteDescription, siteStructuredData } from "./seo";
+
+export const metadata = pageMetadata("Climate Data API & MCP for AI Agents", siteDescription, "/");
 
 const vars = (values: Record<string, string | number>) => values as CSSProperties;
 
@@ -116,6 +119,7 @@ function RegionMap() {
 
 export default function Page() {
   return <>
+    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(siteStructuredData).replace(/</g, "\\u003c") }} />
     <nav className="nav" aria-label="Primary">
       <a className="brand" href="#top"><Mark />verdant<span> AI</span></a>
       <div className="nav-links"><a href="/playground">Playground</a><a href="#how">How it works</a><a href="#evidence">Evidence</a><a href="/api/v1/openapi.json">API contract</a><a href={docs}>Docs <span aria-hidden="true">↗</span></a></div>
@@ -131,7 +135,7 @@ export default function Page() {
           <h1><span className="line"><Words text="Your agent has a question." /></span>
             <span className="line serif"><Words text="Give it" from={5} />{" "}<span className="underlined"><Words text="better data." from={7} /><svg className="swash" viewBox="0 0 400 24" preserveAspectRatio="none" aria-hidden="true"><path d="M4 18C80 6 170 4 250 9s110 6 146 1" /></svg></span></span></h1>
           <div className="hero-row">
-            <p className="lede">Specify the place, period and format. Verdant retrieves, normalizes and delivers climate data with its evidence intact.</p>
+            <p className="lede">Climate data for AI agents, through an API or MCP. Specify the place, period and format. Verdant retrieves, normalizes and delivers the data with its evidence intact.</p>
             <div className="actions"><a className="button" href="/playground">Ask the analyst <Arrow /></a><a className="button ghost" href={docs}>Read the docs <span aria-hidden="true">↗</span></a></div>
           </div>
         </div>

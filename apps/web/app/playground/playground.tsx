@@ -200,6 +200,7 @@ export function Playground() {
         <div className="pg-log" ref={logRef}>
           {view.turns.length === 0
             ? <div className="pg-intro">
+                <h1>Explore climate &amp; farm data</h1>
                 <p>Ask in plain language. Verdant's analyst finds the published datasets that fit, gathers and processes the data in a sandbox, and writes up its methodology with charts and equations.</p>
                 <ul className="pg-suggestions">{suggestions.map(s => <li key={s}><button type="button" onClick={() => void ask(s)}>{s}</button></li>)}</ul>
               </div>
