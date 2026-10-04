@@ -103,7 +103,8 @@ async function serveSession(claim: Claim, opts: PlaygroundOptions) {
     if (event.type === "turn_end" && current) {
       const reason = String(event.reason ?? "");
       buffer.push(event.ok ? { kind: "turn_finished", data: { seq: current.seq, reply: event.reply, usage: event.usage, durationMs: event.durationMs } }
-        : reason === "cancelled" ? { kind: "turn_cancelled", data: { reason } } : { kind: "turn_failed", data: { seq: current.seq, reason } });
+        : reason === "cancelled" ? { kind: "turn_cancelled", data: { reason, durationMs: event.durationMs } }
+        : { kind: "turn_failed", data: { seq: current.seq, reason, durationMs: event.durationMs } });
       log("playground_turn_finished", { id, seq: current.seq, ok: event.ok, reason: event.reason, usage: event.usage, durationMs: event.durationMs });
       done = current.seq; current = null; idleSince = Date.now();
       return next();

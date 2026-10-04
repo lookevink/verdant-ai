@@ -15,7 +15,10 @@ import { modelSpec } from "../acquisition/model";
 import { ArtifactError, checkChart, checkDataset, checkReport, loadSkills } from "./artifacts";
 
 const thinkingLevels = ["off", "minimal", "low", "medium", "high"] as const;
-const toolBudget = Number(process.env.PLAYGROUND_TOOL_BUDGET) || 80;
+// Model steps are limited per turn. Calls a codemode script makes (for example paging through a dataset) are cheap and
+// never enter the conversation, so they have their own, much larger bound; the turn timeout bounds both.
+const toolBudget = Number(process.env.PLAYGROUND_TOOL_BUDGET) || 60;
+const scriptCallBudget = Number(process.env.PLAYGROUND_SCRIPT_CALL_BUDGET) || 1500;
 const turnTimeoutMs = Number(process.env.PLAYGROUND_TURN_TIMEOUT_MS) || 420_000;
 const labels: Record<string, string> = {
   codemode: "Run analysis script", save_dataset: "Save dataset", render_chart: "Render chart", write_report: "Write report", read_skill: "Read methodology guide",
@@ -33,14 +36,27 @@ How to work:
 1. Discover: the catalog is large, so list it in a codemode script (tools.mcp__verdant__list_datasets) and print only a compact
    summary (id, title, data_class, variables, period, bbox). Then get_dataset for candidates and read their methodology, units,
    coverage and caveats before using them.
-2. Gather inside codemode scripts: call tools.mcp__verdant__list_observations (follow nextCursor until null; on a size error halve
-   the limit), tools.mcp__verdant__query_data or tools.mcp__verdant__list_raster_tiles there, so bulk rows never enter the conversation.
-   MCP calls resolve to a CallToolResult; read result.structuredContent and check result.isError. A dataset's \`variables\`
-   maps each variable name to its unit. describeTool(name) and searchTools(query) are script globals, not members of tools.
+2. Gather inside codemode scripts, so bulk rows never enter the conversation. Each call resolves to a CallToolResult: read
+   result.structuredContent and check result.isError. The data tools and their exact arguments:
+   - tools.mcp__verdant__list_datasets({}) → { datasets }. A dataset's \`variables\` maps each variable name to its unit.
+   - tools.mcp__verdant__get_dataset({ id }) → { dataset }
+   - tools.mcp__verdant__list_observations({ id, limit, after }) → { datasetVersion, observations, nextCursor }. Pass nextCursor
+     back as \`after\` until it is null. Responses are capped near 1 MB and an observation can carry long per-period arrays in
+     \`dimensions.series\`, so check one row first (limit: 1), use limit 10 for such datasets, and halve the limit on
+     request_too_large or response_too_large. Paging a large dataset takes about a minute, so do it once: in the same
+     script, reduce each page to the aggregates or slim rows you need and save them with save_dataset. store()/load() keep
+     only small values (at most about 250 KB), never raw pages.
+   - tools.mcp__verdant__list_raster_tiles({ id, limit, after }) and tools.mcp__verdant__sample_raster({ id, tile, row, col })
+   - tools.mcp__verdant__resolve_data(request) and tools.mcp__verdant__query_data(request), with request = { variables: [v],
+     region: { bbox: [west, south, east, north], crs: "EPSG:4326" }, period: { start, end } (at most 31 days),
+     temporal_resolution: "daily", spatial_resolution: "native", units: { [v]: unit }, data_class: "interpolated_observation",
+     missing_policy: "preserve" }, where v is air_temperature_max or air_temperature_min (unit "degC") or precipitation_amount ("mm").
+   describeTool(name) and searchTools(query) are async script globals (await them), not members of tools.
 3. Save every table the answer depends on with tools.save_dataset (from the script), with provenance: datasetVersion,
    contentSha256, attribution and license from get_dataset. Save derived tables too (aggregates, model fits).
 4. Process in codemode with plain JavaScript (no libraries). Prefer simple, checkable statistics; state formulas and sample sizes.
-5. Present: render_chart for figures (Vega-Lite v5; data: {"name": "<saved dataset>"}; give axes titles with units), then
+5. Present: render_chart for figures (Vega-Lite v5; data: {"name": "<saved dataset>"}; give axes titles with units; draw
+   reference lines with datum encodings, since inline data values are rejected), then
    write_report with the full write-up. Calling write_report again replaces the report; revise it on follow-ups.
 6. Reply: finish every turn with a short spoken answer (rules below).
 
@@ -156,7 +172,7 @@ async function main(dir: string) {
   const uiContext = new Proxy({}, { get: (_, key) => key === "notify" ? (message: string, level?: string) => notice(level ?? "info", message) : () => undefined });
   await session.bindExtensions({ uiContext: uiContext as never, onError: error => notice("error", (error as { error?: unknown }).error ?? error) });
 
-  type Turn = { seq: number; started: number; usage: PlaygroundUsage; calls: number; stop?: string; error?: string; reply?: string };
+  type Turn = { seq: number; started: number; usage: PlaygroundUsage; calls: number; scriptCalls: number; stop?: string; error?: string; reply?: string };
   let turn = null as Turn | null;
   session.subscribe(event => {
     if (event.type === "message_update" && event.assistantMessageEvent.type === "text_delta") emit({ type: "delta", text: event.assistantMessageEvent.delta });
@@ -179,7 +195,9 @@ async function main(dir: string) {
       emit({ type: "tool_start", id: event.toolCallId, parent: event.parentToolCallId, tool: event.toolName,
         label: (labels[event.toolName] ?? event.toolName.replace(/^mcp__\w+?__/, "").replaceAll("_", " ")) + (typeof name === "string" ? ` · ${name}` : ""),
         input: input.slice(0, 6000) });
-      if (turn && ++turn.calls > toolBudget) { turn.stop = "tool_budget_exhausted"; void session.abort(); }
+      if (turn && (event.parentToolCallId ? ++turn.scriptCalls > scriptCallBudget : ++turn.calls > toolBudget)) {
+        turn.stop ??= "tool_budget_exhausted"; void session.abort();
+      }
     } else if (event.type === "tool_execution_end") {
       const result = event.result as { content?: { type: string; text?: string }[] } | undefined;
       const text = result?.content?.filter(c => c.type === "text").map(c => c.text).join("\n") ?? "";
@@ -193,7 +211,7 @@ async function main(dir: string) {
   const prompts: Command[] = [];
   let running: Promise<void> | null = null;
   const runTurn = async (command: Command) => {
-    turn = { seq: command.seq!, started: Date.now(), usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, costUsd: 0, turns: 0 }, calls: 0 };
+    turn = { seq: command.seq!, started: Date.now(), usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, costUsd: 0, turns: 0 }, calls: 0, scriptCalls: 0 };
     // A session whose local transcript is gone (new worker, cleared disk) continues from the recorded conversation.
     const fresh = !session.messages.some(m => m.role === "user") && command.history?.length;
     const text = fresh ? `Earlier in this conversation (transcript recovered; earlier artifacts may be gone):\n${command.history!.map(h => `${h.role}: ${h.text}`).join("\n")}\n\nNew message:\n${command.text}` : command.text!;

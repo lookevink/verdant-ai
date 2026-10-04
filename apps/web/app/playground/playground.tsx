@@ -275,7 +275,7 @@ function TurnView({ turn, onOpenReport }: { turn: Turn; onOpenReport(): void }) 
     {hasWork && <div className="pg-work" data-open={expanded || undefined}>
       <button type="button" className="pg-work-toggle" onClick={() => setOpen(!expanded)} aria-expanded={expanded}>
         <span className="pg-spinner" data-live={live || undefined} />
-        {live ? "Working" : `Worked for ${seconds(turn.durationMs)}`} · {count} step{count === 1 ? "" : "s"}
+        {live ? "Working" : turn.durationMs === undefined ? "Stopped" : `${turn.status === "done" ? "Worked for" : "Stopped after"} ${seconds(turn.durationMs)}`} · {count} step{count === 1 ? "" : "s"}
         {turn.usage && turn.usage.costUsd > 0 && <span className="pg-cost">${turn.usage.costUsd.toFixed(2)}</span>}
       </button>
       {expanded && <ol className="pg-trail">

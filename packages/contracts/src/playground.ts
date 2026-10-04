@@ -41,8 +41,8 @@ export type PlaygroundEvent =
   | Event<"report", PlaygroundReport>
   /** `reply` is the short conversational answer the avatar speaks. */
   | Event<"turn_finished", { seq: number; reply: string; usage?: PlaygroundUsage; durationMs: number }>
-  | Event<"turn_cancelled", { reason: string }>
-  | Event<"turn_failed", { seq?: number; reason: string }>;
+  | Event<"turn_cancelled", { reason: string; durationMs?: number }>
+  | Event<"turn_failed", { seq?: number; reason: string; durationMs?: number }>;
 export type PlaygroundEventKind = PlaygroundEvent["kind"];
 export type PlaygroundSession = { id: string; status: "idle" | "queued" | "running" | "closed"; turns: number; lastSeq: number; createdAt: string; updatedAt: string };
 export type PlaygroundEventPage = PlaygroundSession & { events: PlaygroundEvent[] };

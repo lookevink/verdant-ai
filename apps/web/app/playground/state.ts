@@ -52,9 +52,10 @@ export function apply(view: View, event: PlaygroundEvent): View {
       const timeline = last?.type === "note" && last.text === event.data.reply ? t.timeline.slice(0, -1) : t.timeline;
       return { ...t, status: "done", draft: "", timeline, reply: event.data.reply, usage: event.data.usage, durationMs: event.data.durationMs, finishedAt: Date.parse(event.at) };
     }); break;
-    case "turn_failed": at(bySeq(event.data.seq), t => ({ ...finish(t), status: "failed", reason: event.data.reason, finishedAt: Date.parse(event.at) })); break;
+    case "turn_failed": at(bySeq(event.data.seq), t => ({ ...finish(t), status: "failed", reason: event.data.reason, durationMs: event.data.durationMs, finishedAt: Date.parse(event.at) })); break;
     case "turn_cancelled":
-      for (let i = 0; i < turns.length; i++) if (turns[i]!.status === "running" || turns[i]!.status === "queued") turns[i] = { ...finish(turns[i]!), status: "cancelled", reason: event.data.reason };
+      for (let i = 0; i < turns.length; i++) if (turns[i]!.status === "running" || turns[i]!.status === "queued")
+        turns[i] = { ...finish(turns[i]!), status: "cancelled", reason: event.data.reason, durationMs: turns[i]!.status === "running" ? event.data.durationMs : undefined };
       next.turns = turns; break;
     case "session_status": next.agent = { state: event.data.state, model: event.data.model ?? view.agent?.model }; break;
   }
